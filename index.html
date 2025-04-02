@@ -94,11 +94,12 @@
             const storedUser = localStorage.getItem('currentUser');
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
+                console.log('Usuario cargado desde localStorage:', currentUser);
                 document.getElementById('authSection').classList.add('hidden');
                 document.getElementById('msgSection').classList.remove('hidden');
                 document.getElementById('openbtn').style.display = 'block';
                 document.getElementById('sidebar').classList.remove('hidden');
-                document.getElementById('currentUser').textContent = currentUser.displayName;
+                document.getElementById('currentUser').textContent = currentUser.displayName || 'Sin nombre';
                 document.getElementById('userId').textContent = currentUser.id;
                 loadContacts();
             }
@@ -131,6 +132,8 @@
             const password = document.getElementById('regPassword').value;
             const messageElement = document.getElementById('authMessage');
 
+            console.log('Registrando usuario:', { username, password });
+
             if (!username || !password) {
                 messageElement.textContent = 'Completa ambos campos';
                 return;
@@ -143,6 +146,7 @@
                     body: JSON.stringify({ username, password })
                 });
                 const data = await response.json();
+                console.log('Respuesta de registro:', data);
 
                 if (response.ok) {
                     messageElement.textContent = `Usuario creado. Tu ID es: ${data.user.id}`;
@@ -160,6 +164,8 @@
             const password = document.getElementById('loginPassword').value;
             const messageElement = document.getElementById('authMessage');
 
+            console.log('Iniciando sesión:', { username, password });
+
             if (!username || !password) {
                 messageElement.textContent = 'Completa ambos campos';
                 return;
@@ -168,6 +174,7 @@
             try {
                 const response = await fetch(`${BASE_URL}/api/users`);
                 const users = await response.json();
+                console.log('Usuarios obtenidos:', users);
                 const user = users.find(u => u.username === username && u.password === password);
 
                 if (user) {
@@ -177,12 +184,13 @@
                         displayName: user.displayName, 
                         profilePicture: user.profilePicture ? `${BASE_URL}/${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
+                    console.log('Usuario logueado:', currentUser);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     document.getElementById('authSection').classList.add('hidden');
                     document.getElementById('msgSection').classList.remove('hidden');
                     document.getElementById('openbtn').style.display = 'block';
                     document.getElementById('sidebar').classList.remove('hidden');
-                    document.getElementById('currentUser').textContent = currentUser.displayName;
+                    document.getElementById('currentUser').textContent = currentUser.displayName || 'Sin nombre';
                     document.getElementById('userId').textContent = currentUser.id;
                     await loadContacts();
                 } else {
@@ -195,6 +203,7 @@
         }
 
         function logout() {
+            console.log('Cerrando sesión');
             currentUser = null;
             selectedContact = null;
             localStorage.removeItem('currentUser');
@@ -216,6 +225,8 @@
             const contactId = document.getElementById('newContact').value;
             const statusElement = document.getElementById('contactStatus');
 
+            console.log('Agregando contacto:', { userId: currentUser.id, contactId });
+
             if (!contactId) {
                 statusElement.textContent = 'Ingresa un nombre de usuario';
                 return;
@@ -228,6 +239,7 @@
                     body: JSON.stringify({ userId: currentUser.id, contactId })
                 });
                 const data = await response.json();
+                console.log('Respuesta de agregar contacto:', data);
 
                 if (response.ok) {
                     statusElement.textContent = 'Contacto agregado';
@@ -264,15 +276,17 @@
 
                 contacts.forEach(contact => {
                     const profilePic = contact.profilePicture ? `${BASE_URL}/${contact.profilePicture}` : 'https://via.placeholder.com/40';
+                    console.log('Procesando contacto:', { id: contact.id, displayName: contact.displayName, profilePic });
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
                     contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${contact.displayName}" onerror="this.src='https://via.placeholder.com/40'">
-                        <span>${contact.displayName}</span>
+                        <img src="${profilePic}" alt="${contact.displayName || 'Sin nombre'}" onerror="this.src='https://via.placeholder.com/40'">
+                        <span>${contact.displayName || 'Sin nombre'}</span>
                         ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
                     `;
                     contactElement.onclick = () => {
                         selectedContact = contact.id;
+                        console.log('Contacto seleccionado:', selectedContact);
                         updateMessages();
                         markMessagesAsRead();
                     };
@@ -293,6 +307,8 @@
             const content = document.getElementById('messageContent').value;
             const messageStatus = document.getElementById('messageStatus');
 
+            console.log('Enviando mensaje:', { senderId: currentUser.id, recipientId: selectedContact, content });
+
             if (!content) {
                 messageStatus.textContent = 'Escribe un mensaje';
                 return;
@@ -309,6 +325,7 @@
                     })
                 });
                 const data = await response.json();
+                console.log('Respuesta de enviar mensaje:', data);
 
                 if (response.ok) {
                     messageStatus.textContent = 'Mensaje enviado';
@@ -344,7 +361,10 @@
                     const profilePic = isSent ? 
                         (currentUser.profilePicture ? currentUser.profilePicture : 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}/${msg.senderPicture}` : 'https://via.placeholder.com/30');
-                    const displayName = isSent ? currentUser.displayName : msg.senderDisplayName;
+                    const displayName = isSent ? 
+                        (currentUser.displayName || 'Sin nombre') : 
+                        (msg.senderDisplayName || 'Sin nombre');
+                    console.log('Procesando mensaje:', { isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
@@ -365,11 +385,13 @@
             if (!currentUser || !selectedContact) return;
 
             try {
-                await fetch(`${BASE_URL}/api/messages/read`, {
+                const response = await fetch(`${BASE_URL}/api/messages/read`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id, contactId: selectedContact })
                 });
+                const data = await response.json();
+                console.log('Mensajes marcados como leídos:', data);
                 await loadContacts();
             } catch (error) {
                 console.error('Error al marcar mensajes como leídos:', error);
@@ -382,6 +404,8 @@
             const displayName = document.getElementById('displayName').value;
             const profilePicture = document.getElementById('profilePicture').files[0];
             const statusElement = document.getElementById('settingsStatus');
+
+            console.log('Actualizando perfil:', { displayName, hasFile: !!profilePicture });
 
             if (!displayName && !profilePicture) {
                 statusElement.textContent = 'Ingresa un nombre o selecciona una foto';
@@ -399,13 +423,14 @@
                     body: formData
                 });
                 const data = await response.json();
+                console.log('Respuesta de actualizar perfil:', data);
 
                 if (response.ok) {
                     statusElement.textContent = 'Perfil actualizado';
                     currentUser.displayName = data.user.displayName;
                     currentUser.profilePicture = data.user.profilePicture ? `${BASE_URL}/${data.user.profilePicture}` : null;
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    document.getElementById('currentUser').textContent = currentUser.displayName;
+                    document.getElementById('currentUser').textContent = currentUser.displayName || 'Sin nombre';
                     await loadContacts();
                     if (selectedContact) await updateMessages();
                 } else {
