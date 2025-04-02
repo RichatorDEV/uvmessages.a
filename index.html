@@ -174,7 +174,7 @@
                     currentUser = { 
                         id: user.id, 
                         username: user.username, 
-                        displayName: user.displayName || user.username, 
+                        displayName: user.displayName, 
                         profilePicture: user.profilePicture ? `${BASE_URL}/${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -342,11 +342,9 @@
                 messages.forEach(msg => {
                     const isSent = msg.senderId === currentUser.id;
                     const profilePic = isSent ? 
-                        (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
+                        (currentUser.profilePicture ? currentUser.profilePicture : 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}/${msg.senderPicture}` : 'https://via.placeholder.com/30');
-                    const displayName = isSent ? 
-                        currentUser.displayName : 
-                        msg.senderDisplayName;
+                    const displayName = isSent ? currentUser.displayName : msg.senderDisplayName;
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
