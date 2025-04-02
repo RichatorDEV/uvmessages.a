@@ -99,7 +99,7 @@
                 document.getElementById('msgSection').classList.remove('hidden');
                 document.getElementById('openbtn').style.display = 'block';
                 document.getElementById('sidebar').classList.remove('hidden');
-                document.getElementById('currentUser').textContent = currentUser.displayName;
+                document.getElementById('currentUser').textContent = currentUser.displayName || '[Nombre no definido]';
                 document.getElementById('userId').textContent = currentUser.id;
                 loadContacts();
             }
@@ -143,7 +143,7 @@
                 const response = await fetch(`${BASE_URL}/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ username, password, displayName: username }) // Enviar displayName explícitamente
                 });
                 const data = await response.json();
                 console.log('Respuesta de registro:', data);
@@ -181,7 +181,7 @@
                     currentUser = { 
                         id: user.id, 
                         username: user.username, 
-                        displayName: user.displayName, 
+                        displayName: user.displayName || user.username, 
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     console.log('Usuario logueado:', currentUser);
@@ -276,12 +276,13 @@
 
                 contacts.forEach(contact => {
                     const profilePic = contact.profilePicture ? `${BASE_URL}${contact.profilePicture}` : 'https://via.placeholder.com/40';
-                    console.log('Procesando contacto:', { id: contact.id, displayName: contact.displayName, profilePic });
+                    const displayName = contact.displayName || contact.username || '[Nombre no definido]';
+                    console.log('Procesando contacto:', { id: contact.id, displayName, profilePic });
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
                     contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${contact.displayName}" onerror="this.src='https://via.placeholder.com/40'">
-                        <span>${contact.displayName}</span>
+                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'">
+                        <span>${displayName}</span>
                         ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
                     `;
                     contactElement.onclick = () => {
@@ -359,9 +360,11 @@
                 messages.forEach(msg => {
                     const isSent = msg.senderId === currentUser.id;
                     const profilePic = isSent ? 
-                        (currentUser.profilePicture ? currentUser.profilePicture : 'https://via.placeholder.com/30') : 
+                        (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
-                    const displayName = isSent ? currentUser.displayName : msg.senderDisplayName;
+                    const displayName = isSent ? 
+                        (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
+                        (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
                     console.log('Procesando mensaje:', { isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
@@ -405,14 +408,9 @@
 
             console.log('Actualizando perfil:', { displayName, hasFile: !!profilePicture });
 
-            if (!displayName && !profilePicture) {
-                statusElement.textContent = 'Ingresa un nombre o selecciona una foto';
-                return;
-            }
-
             const formData = new FormData();
             formData.append('userId', currentUser.id);
-            if (displayName) formData.append('displayName', displayName);
+            formData.append('displayName', displayName || currentUser.displayName); // Enviar displayName actual si no hay nuevo
             if (profilePicture) formData.append('profilePicture', profilePicture);
 
             try {
