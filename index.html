@@ -85,7 +85,7 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://uvmessages-production.up.railway.app';
+        const BASE_URL = 'https://uvmessages-production.up.railway.app'; // Verifica que esta sea la URL pública de tu backend
         let currentUser = null;
         let selectedContact = null;
 
@@ -106,8 +106,12 @@
 
         async function refreshUserData() {
             try {
+                console.log('Intentando refrescar datos desde:', `${BASE_URL}/api/users`);
                 const response = await fetch(`${BASE_URL}/api/users`);
-                if (!response.ok) throw new Error('Error al obtener usuarios');
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const users = await response.json();
                 console.log('Usuarios obtenidos para refrescar:', users);
                 const user = users.find(u => String(u.id) === String(currentUser.id));
@@ -125,8 +129,9 @@
                     logout();
                 }
             } catch (error) {
-                console.error('Error al refrescar usuario:', error);
-                showMainInterface();
+                console.error('Error al refrescar usuario:', error.message);
+                document.getElementById('authMessage').textContent = 'Error al conectar con el servidor: ' + error.message;
+                showMainInterface(); // Mostrar interfaz aunque falle para depurar
             }
         }
 
@@ -136,8 +141,8 @@
             document.getElementById('msgSection').classList.remove('hidden');
             document.getElementById('openbtn').style.display = 'block';
             document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser.username;
-            document.getElementById('userId').textContent = currentUser.id;
+            document.getElementById('currentUser').textContent = currentUser ? currentUser.username : 'N/A';
+            document.getElementById('userId').textContent = currentUser ? currentUser.id : 'N/A';
             loadContacts();
         }
 
@@ -176,11 +181,16 @@
             }
 
             try {
+                console.log('Enviando solicitud a:', `${BASE_URL}/api/users`);
                 const response = await fetch(`${BASE_URL}/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const data = await response.json();
                 console.log('Respuesta de registro:', data);
 
@@ -190,8 +200,8 @@
                     messageElement.textContent = `Error: ${data.error}`;
                 }
             } catch (error) {
-                console.error('Error al registrar:', error);
-                messageElement.textContent = 'Error al conectar con el servidor';
+                console.error('Error al registrar:', error.message);
+                messageElement.textContent = 'Error al conectar con el servidor: ' + error.message;
             }
         }
 
@@ -208,8 +218,12 @@
             }
 
             try {
+                console.log('Enviando solicitud a:', `${BASE_URL}/api/users`);
                 const response = await fetch(`${BASE_URL}/api/users`);
-                if (!response.ok) throw new Error('Error al obtener usuarios');
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const users = await response.json();
                 console.log('Usuarios obtenidos:', users);
                 const user = users.find(u => u.username === username && u.password === password);
@@ -227,8 +241,8 @@
                     messageElement.textContent = 'Usuario o contraseña incorrectos';
                 }
             } catch (error) {
-                console.error('Error al iniciar sesión:', error);
-                messageElement.textContent = 'Error al conectar con el servidor';
+                console.error('Error al iniciar sesión:', error.message);
+                messageElement.textContent = 'Error al conectar con el servidor: ' + error.message;
             }
         }
 
@@ -263,11 +277,16 @@
             }
 
             try {
+                console.log('Enviando solicitud a:', `${BASE_URL}/api/contacts`);
                 const response = await fetch(`${BASE_URL}/api/contacts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id, contactId })
                 });
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const data = await response.json();
                 console.log('Respuesta de agregar contacto:', data);
 
@@ -279,8 +298,8 @@
                     statusElement.textContent = `Error: ${data.error}`;
                 }
             } catch (error) {
-                console.error('Error al agregar contacto:', error);
-                statusElement.textContent = 'Error al conectar con el servidor';
+                console.error('Error al agregar contacto:', error.message);
+                statusElement.textContent = 'Error al conectar con el servidor: ' + error.message;
             }
         }
 
@@ -288,10 +307,11 @@
             if (!currentUser) return;
 
             try {
+                console.log('Cargando contactos desde:', `${BASE_URL}/api/contacts?userId=${currentUser.id}`);
                 const response = await fetch(`${BASE_URL}/api/contacts?userId=${currentUser.id}`);
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Error al cargar contactos');
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
                 }
                 const contacts = await response.json();
                 const contactsDiv = document.getElementById('contacts');
@@ -323,7 +343,7 @@
                     contactsDiv.appendChild(contactElement);
                 });
             } catch (error) {
-                console.error('Error al cargar contactos:', error);
+                console.error('Error al cargar contactos:', error.message);
                 document.getElementById('contactStatus').textContent = `Error: ${error.message}`;
             }
         }
@@ -345,6 +365,7 @@
             }
 
             try {
+                console.log('Enviando solicitud a:', `${BASE_URL}/api/messages`);
                 const response = await fetch(`${BASE_URL}/api/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -354,6 +375,10 @@
                         content: content
                     })
                 });
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const data = await response.json();
                 console.log('Respuesta de enviar mensaje:', data);
 
@@ -366,8 +391,8 @@
                     messageStatus.textContent = `Error: ${data.error}`;
                 }
             } catch (error) {
-                console.error('Error al enviar mensaje:', error);
-                messageStatus.textContent = 'Error al conectar con el servidor';
+                console.error('Error al enviar mensaje:', error.message);
+                messageStatus.textContent = 'Error al conectar con el servidor: ' + error.message;
             }
         }
 
@@ -379,10 +404,11 @@
             }
 
             try {
+                console.log('Cargando mensajes desde:', `${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
                 const response = await fetch(`${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Error al obtener mensajes');
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
                 }
                 const messages = await response.json();
                 const messagesDiv = document.getElementById('messages');
@@ -415,7 +441,7 @@
 
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } catch (error) {
-                console.error('Error al actualizar mensajes:', error);
+                console.error('Error al actualizar mensajes:', error.message);
                 document.getElementById('messageStatus').textContent = `Error: ${error.message}`;
             }
         }
@@ -424,16 +450,21 @@
             if (!currentUser || !selectedContact) return;
 
             try {
+                console.log('Marcando mensajes como leídos en:', `${BASE_URL}/api/messages/read`);
                 const response = await fetch(`${BASE_URL}/api/messages/read`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id, contactId: selectedContact })
                 });
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const data = await response.json();
                 console.log('Mensajes marcados como leídos:', data);
                 await loadContacts();
             } catch (error) {
-                console.error('Error al marcar mensajes como leídos:', error);
+                console.error('Error al marcar mensajes como leídos:', error.message);
             }
         }
 
@@ -455,10 +486,15 @@
             formData.append('profilePicture', profilePicture);
 
             try {
+                console.log('Enviando solicitud a:', `${BASE_URL}/api/upload-profile-picture`);
                 const response = await fetch(`${BASE_URL}/api/upload-profile-picture`, {
                     method: 'POST',
                     body: formData
                 });
+                if (!response.ok) {
+                    console.error('Respuesta no OK:', response.status, response.statusText);
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                }
                 const data = await response.json();
                 console.log('Respuesta de actualizar perfil:', data);
 
@@ -473,8 +509,8 @@
                     statusElement.textContent = `Error: ${data.error}`;
                 }
             } catch (error) {
-                console.error('Error al actualizar perfil:', error);
-                statusElement.textContent = 'Error al conectar con el servidor';
+                console.error('Error al actualizar perfil:', error.message);
+                statusElement.textContent = 'Error al conectar con el servidor: ' + error.message;
             }
         }
 
