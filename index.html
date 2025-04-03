@@ -95,15 +95,51 @@
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 console.log('Usuario cargado desde localStorage:', currentUser);
-                document.getElementById('authSection').classList.add('hidden');
-                document.getElementById('msgSection').classList.remove('hidden');
-                document.getElementById('openbtn').style.display = 'block';
-                document.getElementById('sidebar').classList.remove('hidden');
-                document.getElementById('currentUser').textContent = currentUser.displayName || '[Nombre no definido]';
-                document.getElementById('userId').textContent = currentUser.id;
-                loadContacts();
+                if (!currentUser.displayName) {
+                    console.warn('displayName no está definido en localStorage, intentando recargar desde servidor');
+                    loginFromStorage(currentUser.username, currentUser.id);
+                } else {
+                    showMainInterface();
+                }
             }
         };
+
+        function showMainInterface() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('msgSection').classList.remove('hidden');
+            document.getElementById('openbtn').style.display = 'block';
+            document.getElementById('sidebar').classList.remove('hidden');
+            document.getElementById('currentUser').textContent = currentUser.displayName || '[Nombre no definido]';
+            document.getElementById('userId').textContent = currentUser.id;
+            console.log('Interfaz principal mostrada con:', currentUser);
+            loadContacts();
+        }
+
+        async function loginFromStorage(username, id) {
+            try {
+                const response = await fetch(`${BASE_URL}/api/users`);
+                const users = await response.json();
+                console.log('Usuarios obtenidos para recarga:', users);
+                const user = users.find(u => u.username === username && u.id === id);
+                if (user) {
+                    currentUser = {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName || user.username,
+                        profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
+                    };
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    console.log('Usuario recargado desde servidor:', currentUser);
+                    showMainInterface();
+                } else {
+                    console.error('Usuario no encontrado en el servidor, cerrando sesión');
+                    logout();
+                }
+            } catch (error) {
+                console.error('Error al recargar usuario desde localStorage:', error);
+                logout();
+            }
+        }
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -181,18 +217,12 @@
                     currentUser = { 
                         id: user.id, 
                         username: user.username, 
-                        displayName: user.displayName || user.username || '[Nombre no definido]', 
+                        displayName: user.displayName || user.username, 
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     console.log('Usuario logueado con datos procesados:', currentUser);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    document.getElementById('authSection').classList.add('hidden');
-                    document.getElementById('msgSection').classList.remove('hidden');
-                    document.getElementById('openbtn').style.display = 'block';
-                    document.getElementById('sidebar').classList.remove('hidden');
-                    document.getElementById('currentUser').textContent = currentUser.displayName;
-                    document.getElementById('userId').textContent = currentUser.id;
-                    await loadContacts();
+                    showMainInterface();
                 } else {
                     messageElement.textContent = 'Usuario o contraseña incorrectos';
                 }
@@ -281,7 +311,7 @@
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
                     contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'">
+                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen:', '${profilePic}');">
                         <span>${displayName}</span>
                         ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
                     `;
@@ -369,7 +399,7 @@
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/30'">
+                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen:', '${profilePic}');">
                         <span>${displayName}: ${msg.content} (${new Date(msg.timestamp).toLocaleString()})</span>
                     `;
                     messagesDiv.appendChild(msgElement);
@@ -427,6 +457,7 @@
                     currentUser.profilePicture = data.user.profilePicture ? `${BASE_URL}${data.user.profilePicture}` : null;
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     document.getElementById('currentUser').textContent = currentUser.displayName;
+                    console.log('currentUser actualizado tras perfil:', currentUser);
                     await loadContacts();
                     if (selectedContact) await updateMessages();
                 } else {
