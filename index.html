@@ -108,6 +108,7 @@
         async function refreshUserData() {
             try {
                 const response = await fetch(`${BASE_URL}/api/users`);
+                if (!response.ok) throw new Error('Error al obtener usuarios');
                 const users = await response.json();
                 console.log('Usuarios obtenidos para refrescar:', users);
                 const user = users.find(u => u.id === currentUser.id);
@@ -127,7 +128,7 @@
                 }
             } catch (error) {
                 console.error('Error al refrescar usuario:', error);
-                showMainInterface(); // Mostrar con datos locales si falla
+                showMainInterface(); // Usar datos locales si falla
             }
         }
 
@@ -137,7 +138,7 @@
             document.getElementById('msgSection').classList.remove('hidden');
             document.getElementById('openbtn').style.display = 'block';
             document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser.displayName || currentUser.username || '[Nombre no definido]';
+            document.getElementById('currentUser').textContent = currentUser.displayName;
             document.getElementById('userId').textContent = currentUser.id;
             loadContacts();
         }
@@ -210,6 +211,7 @@
 
             try {
                 const response = await fetch(`${BASE_URL}/api/users`);
+                if (!response.ok) throw new Error('Error al obtener usuarios');
                 const users = await response.json();
                 console.log('Usuarios obtenidos:', users);
                 const user = users.find(u => u.username === username && u.password === password);
@@ -390,14 +392,14 @@
                 console.log('currentUser en updateMessages:', currentUser);
 
                 messages.forEach(msg => {
-                    const isSent = msg.senderId === currentUser.id;
-                    console.log('Comparando:', { senderId: msg.senderId, currentUserId: currentUser.id, isSent });
+                    const isSent = String(msg.senderId) === String(currentUser.id);
+                    console.log('Comparando IDs:', { senderId: msg.senderId, currentUserId: currentUser.id, isSent });
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
                     const displayName = isSent ? 
-                        (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
-                        (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
+                        (currentUser.displayName || currentUser.username) : 
+                        (msg.senderDisplayName || msg.senderId);
                     console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
