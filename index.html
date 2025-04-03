@@ -100,10 +100,36 @@
                     console.error('Datos incompletos en localStorage, cerrando sesión');
                     logout();
                 } else {
-                    showMainInterface();
+                    refreshUserData();
                 }
             }
         };
+
+        async function refreshUserData() {
+            try {
+                const response = await fetch(`${BASE_URL}/api/users`);
+                const users = await response.json();
+                console.log('Usuarios obtenidos para refrescar:', users);
+                const user = users.find(u => u.id === currentUser.id);
+                if (user) {
+                    currentUser = {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName || user.username,
+                        profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
+                    };
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    console.log('Usuario refrescado:', currentUser);
+                    showMainInterface();
+                } else {
+                    console.error('Usuario no encontrado en el servidor, cerrando sesión');
+                    logout();
+                }
+            } catch (error) {
+                console.error('Error al refrescar usuario:', error);
+                showMainInterface(); // Mostrar con datos locales si falla
+            }
+        }
 
         function showMainInterface() {
             console.log('Mostrando interfaz con currentUser:', currentUser);
@@ -272,7 +298,7 @@
                 const contactsDiv = document.getElementById('contacts');
                 contactsDiv.innerHTML = '';
 
-                console.log('Contactos cargados:', contacts);
+                console.log('Contactos cargados para', currentUser.id, ':', contacts);
 
                 if (contacts.length === 0) {
                     contactsDiv.innerHTML = '<p>No tienes contactos aún.</p>';
@@ -361,18 +387,18 @@
                 messagesDiv.innerHTML = '';
 
                 console.log('Mensajes cargados:', messages);
-                console.log('currentUser para mensajes:', currentUser);
+                console.log('currentUser en updateMessages:', currentUser);
 
                 messages.forEach(msg => {
                     const isSent = msg.senderId === currentUser.id;
-                    console.log('Comparando senderId:', msg.senderId, 'con currentUser.id:', currentUser.id, '-> isSent:', isSent);
+                    console.log('Comparando:', { senderId: msg.senderId, currentUserId: currentUser.id, isSent });
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
                     const displayName = isSent ? 
                         (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
                         (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
-                    console.log('Procesando mensaje:', { id: msg.id, senderId: msg.senderId, isSent, displayName, profilePic });
+                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
