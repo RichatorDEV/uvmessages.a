@@ -181,7 +181,7 @@
                     currentUser = { 
                         id: user.id, 
                         username: user.username, 
-                        displayName: user.displayName || user.username, 
+                        displayName: user.displayName || user.username || '[Nombre no definido]', 
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     console.log('Usuario logueado con datos procesados:', currentUser);
@@ -365,7 +365,7 @@
                     const displayName = isSent ? 
                         (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
                         (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
-                    console.log('Procesando mensaje:', { isSent, displayName, profilePic });
+                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
