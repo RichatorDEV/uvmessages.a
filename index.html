@@ -96,7 +96,7 @@
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 console.log('Usuario cargado desde localStorage:', currentUser);
-                if (!currentUser.id || !currentUser.username) {
+                if (!currentUser.id || !currentUser.username || !currentUser.displayName) {
                     console.error('Datos incompletos en localStorage, cerrando sesión');
                     logout();
                 } else {
@@ -138,7 +138,7 @@
             document.getElementById('msgSection').classList.remove('hidden');
             document.getElementById('openbtn').style.display = 'block';
             document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser.displayName;
+            document.getElementById('currentUser').textContent = currentUser.displayName || 'Usuario sin nombre';
             document.getElementById('userId').textContent = currentUser.id;
             loadContacts();
         }
@@ -309,7 +309,7 @@
 
                 contacts.forEach(contact => {
                     const profilePic = contact.profilePicture ? `${BASE_URL}${contact.profilePicture}` : 'https://via.placeholder.com/40';
-                    const displayName = contact.displayName || contact.username || '[Nombre no definido]';
+                    const displayName = contact.displayName || contact.username || 'Usuario sin nombre';
                     console.log('Procesando contacto:', { id: contact.id, displayName, profilePic });
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
@@ -376,7 +376,11 @@
         }
 
         async function updateMessages() {
-            if (!currentUser || !selectedContact) return;
+            if (!currentUser || !selectedContact) {
+                console.error('No hay usuario o contacto seleccionado:', { currentUser, selectedContact });
+                document.getElementById('messageStatus').textContent = 'Selecciona un contacto primero';
+                return;
+            }
 
             try {
                 const response = await fetch(`${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
@@ -391,6 +395,11 @@
                 console.log('Mensajes cargados:', messages);
                 console.log('currentUser en updateMessages:', currentUser);
 
+                if (!messages.length) {
+                    messagesDiv.innerHTML = '<p>No hay mensajes aún.</p>';
+                    return;
+                }
+
                 messages.forEach(msg => {
                     const isSent = String(msg.senderId) === String(currentUser.id);
                     console.log('Comparando IDs:', { senderId: msg.senderId, currentUserId: currentUser.id, isSent });
@@ -398,9 +407,9 @@
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
                     const displayName = isSent ? 
-                        (currentUser.displayName || currentUser.username) : 
-                        (msg.senderDisplayName || msg.senderId);
-                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic });
+                        (currentUser.displayName || currentUser.username || 'Usuario sin nombre') : 
+                        (msg.senderDisplayName || msg.senderId || 'Usuario sin nombre');
+                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic, content: msg.content });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
