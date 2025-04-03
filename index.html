@@ -95,9 +95,9 @@
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 console.log('Usuario cargado desde localStorage:', currentUser);
-                if (!currentUser.displayName) {
-                    console.warn('displayName no está definido en localStorage, intentando recargar desde servidor');
-                    loginFromStorage(currentUser.username, currentUser.id);
+                if (!currentUser.id || !currentUser.displayName) {
+                    console.warn('Datos incompletos en localStorage, recargando desde servidor');
+                    loginFromStorage(currentUser.username);
                 } else {
                     showMainInterface();
                 }
@@ -115,12 +115,12 @@
             loadContacts();
         }
 
-        async function loginFromStorage(username, id) {
+        async function loginFromStorage(username) {
             try {
                 const response = await fetch(`${BASE_URL}/api/users`);
                 const users = await response.json();
                 console.log('Usuarios obtenidos para recarga:', users);
-                const user = users.find(u => u.username === username && u.id === id);
+                const user = users.find(u => u.username === username);
                 if (user) {
                     currentUser = {
                         id: user.id,
@@ -386,16 +386,17 @@
                 messagesDiv.innerHTML = '';
 
                 console.log('Mensajes cargados:', messages);
+                console.log('currentUser.id al actualizar mensajes:', currentUser.id);
 
                 messages.forEach(msg => {
                     const isSent = msg.senderId === currentUser.id;
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
-                        (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
+                        (msg.recipientPicture ? `${BASE_URL}${msg.recipientPicture}` : 'https://via.placeholder.com/30');
                     const displayName = isSent ? 
                         (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
-                        (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
-                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic });
+                        (msg.recipientDisplayName || msg.recipientId || '[Nombre no definido]');
+                    console.log('Procesando mensaje:', { id: msg.id, senderId: msg.senderId, isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
