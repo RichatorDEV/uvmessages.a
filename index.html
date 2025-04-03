@@ -92,12 +92,13 @@
 
         window.onload = function() {
             const storedUser = localStorage.getItem('currentUser');
+            console.log('LocalStorage crudo:', storedUser);
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 console.log('Usuario cargado desde localStorage:', currentUser);
-                if (!currentUser.id || !currentUser.displayName) {
-                    console.warn('Datos incompletos en localStorage, recargando desde servidor');
-                    loginFromStorage(currentUser.username);
+                if (!currentUser.id || !currentUser.username) {
+                    console.error('Datos incompletos en localStorage, cerrando sesión');
+                    logout();
                 } else {
                     showMainInterface();
                 }
@@ -105,40 +106,14 @@
         };
 
         function showMainInterface() {
+            console.log('Mostrando interfaz con currentUser:', currentUser);
             document.getElementById('authSection').classList.add('hidden');
             document.getElementById('msgSection').classList.remove('hidden');
             document.getElementById('openbtn').style.display = 'block';
             document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser.displayName || '[Nombre no definido]';
+            document.getElementById('currentUser').textContent = currentUser.displayName || currentUser.username || '[Nombre no definido]';
             document.getElementById('userId').textContent = currentUser.id;
-            console.log('Interfaz principal mostrada con:', currentUser);
             loadContacts();
-        }
-
-        async function loginFromStorage(username) {
-            try {
-                const response = await fetch(`${BASE_URL}/api/users`);
-                const users = await response.json();
-                console.log('Usuarios obtenidos para recarga:', users);
-                const user = users.find(u => u.username === username);
-                if (user) {
-                    currentUser = {
-                        id: user.id,
-                        username: user.username,
-                        displayName: user.displayName || user.username,
-                        profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
-                    };
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    console.log('Usuario recargado desde servidor:', currentUser);
-                    showMainInterface();
-                } else {
-                    console.error('Usuario no encontrado en el servidor, cerrando sesión');
-                    logout();
-                }
-            } catch (error) {
-                console.error('Error al recargar usuario desde localStorage:', error);
-                logout();
-            }
         }
 
         function toggleSidebar() {
@@ -311,7 +286,7 @@
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
                     contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen:', '${profilePic}');">
+                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen de contacto:', '${profilePic}');">
                         <span>${displayName}</span>
                         ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
                     `;
@@ -386,21 +361,22 @@
                 messagesDiv.innerHTML = '';
 
                 console.log('Mensajes cargados:', messages);
-                console.log('currentUser.id al actualizar mensajes:', currentUser.id);
+                console.log('currentUser para mensajes:', currentUser);
 
                 messages.forEach(msg => {
                     const isSent = msg.senderId === currentUser.id;
+                    console.log('Comparando senderId:', msg.senderId, 'con currentUser.id:', currentUser.id, '-> isSent:', isSent);
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
-                        (msg.recipientPicture ? `${BASE_URL}${msg.recipientPicture}` : 'https://via.placeholder.com/30');
+                        (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
                     const displayName = isSent ? 
                         (currentUser.displayName || currentUser.username || '[Nombre no definido]') : 
-                        (msg.recipientDisplayName || msg.recipientId || '[Nombre no definido]');
+                        (msg.senderDisplayName || msg.senderId || '[Nombre no definido]');
                     console.log('Procesando mensaje:', { id: msg.id, senderId: msg.senderId, isSent, displayName, profilePic });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen:', '${profilePic}');">
+                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen de mensaje:', '${profilePic}');">
                         <span>${displayName}: ${msg.content} (${new Date(msg.timestamp).toLocaleString()})</span>
                     `;
                     messagesDiv.appendChild(msgElement);
@@ -441,7 +417,7 @@
 
             const formData = new FormData();
             formData.append('userId', currentUser.id);
-            formData.append('displayName', displayName || currentUser.displayName);
+            formData.append('displayName', displayName || currentUser.displayName || currentUser.username);
             if (profilePicture) formData.append('profilePicture', profilePicture);
 
             try {
