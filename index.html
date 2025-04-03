@@ -78,9 +78,8 @@
 
         <div class="settings-section hidden" id="settingsSection">
             <h2>Configuración</h2>
-            <input type="text" id="displayName" placeholder="Nuevo nombre visible"><br>
             <input type="file" id="profilePicture" accept="image/*"><br>
-            <button onclick="updateProfile()">Actualizar Perfil</button>
+            <button onclick="updateProfile()">Actualizar Foto de Perfil</button>
             <p id="settingsStatus"></p>
         </div>
     </div>
@@ -96,7 +95,7 @@
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 console.log('Usuario cargado desde localStorage:', currentUser);
-                if (!currentUser.id || !currentUser.username || !currentUser.displayName) {
+                if (!currentUser.id || !currentUser.username) {
                     console.error('Datos incompletos en localStorage, cerrando sesión');
                     logout();
                 } else {
@@ -116,7 +115,6 @@
                     currentUser = {
                         id: String(user.id),
                         username: user.username,
-                        displayName: user.displayName || user.username,
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -138,7 +136,7 @@
             document.getElementById('msgSection').classList.remove('hidden');
             document.getElementById('openbtn').style.display = 'block';
             document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser.displayName;
+            document.getElementById('currentUser').textContent = currentUser.username;
             document.getElementById('userId').textContent = currentUser.id;
             loadContacts();
         }
@@ -181,7 +179,7 @@
                 const response = await fetch(`${BASE_URL}/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, displayName: username })
+                    body: JSON.stringify({ username, password })
                 });
                 const data = await response.json();
                 console.log('Respuesta de registro:', data);
@@ -220,7 +218,6 @@
                     currentUser = { 
                         id: String(user.id), 
                         username: user.username, 
-                        displayName: user.displayName || user.username, 
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
                     console.log('Usuario logueado con datos procesados:', currentUser);
@@ -309,13 +306,12 @@
 
                 contacts.forEach(contact => {
                     const profilePic = contact.profilePicture ? `${BASE_URL}${contact.profilePicture}` : 'https://via.placeholder.com/40';
-                    const displayName = contact.displayName || contact.username || 'Usuario sin nombre';
-                    console.log('Procesando contacto:', { id: contact.id, displayName, profilePic });
+                    console.log('Procesando contacto:', { id: contact.id, username: contact.username, profilePic });
                     const contactElement = document.createElement('div');
                     contactElement.className = 'contact';
                     contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen de contacto:', '${profilePic}');">
-                        <span>${displayName}</span>
+                        <img src="${profilePic}" alt="${contact.username}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen de contacto:', '${profilePic}');">
+                        <span>${contact.username}</span>
                         ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
                     `;
                     contactElement.onclick = () => {
@@ -406,15 +402,13 @@
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
                         (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
-                    const displayName = isSent ? 
-                        (currentUser.displayName || currentUser.username) : 
-                        (msg.senderDisplayName || msg.senderId || 'Usuario sin nombre');
-                    console.log('Procesando mensaje:', { id: msg.id, isSent, displayName, profilePic, content: msg.content });
+                    const username = isSent ? currentUser.username : (msg.senderId || 'Desconocido');
+                    console.log('Procesando mensaje:', { id: msg.id, isSent, username, profilePic, content: msg.content });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
                     msgElement.innerHTML = `
-                        <img src="${profilePic}" alt="${displayName}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen de mensaje:', '${profilePic}');">
-                        <span>${displayName}: ${msg.content} (${new Date(msg.timestamp).toLocaleString()})</span>
+                        <img src="${profilePic}" alt="${username}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen de mensaje:', '${profilePic}');">
+                        <span>${username}: ${msg.content} (${new Date(msg.timestamp).toLocaleString()})</span>
                     `;
                     messagesDiv.appendChild(msgElement);
                 });
@@ -446,16 +440,19 @@
         async function updateProfile() {
             if (!currentUser) return;
 
-            const displayName = document.getElementById('displayName').value;
             const profilePicture = document.getElementById('profilePicture').files[0];
             const statusElement = document.getElementById('settingsStatus');
 
-            console.log('Actualizando perfil:', { displayName, hasFile: !!profilePicture });
+            if (!profilePicture) {
+                statusElement.textContent = 'Selecciona una foto';
+                return;
+            }
+
+            console.log('Actualizando perfil con foto');
 
             const formData = new FormData();
             formData.append('userId', currentUser.id);
-            formData.append('displayName', displayName || currentUser.displayName || currentUser.username);
-            if (profilePicture) formData.append('profilePicture', profilePicture);
+            formData.append('profilePicture', profilePicture);
 
             try {
                 const response = await fetch(`${BASE_URL}/api/upload-profile-picture`, {
@@ -466,11 +463,9 @@
                 console.log('Respuesta de actualizar perfil:', data);
 
                 if (response.ok) {
-                    statusElement.textContent = 'Perfil actualizado';
-                    currentUser.displayName = data.user.displayName;
+                    statusElement.textContent = 'Foto de perfil actualizada';
                     currentUser.profilePicture = data.user.profilePicture ? `${BASE_URL}${data.user.profilePicture}` : null;
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    document.getElementById('currentUser').textContent = currentUser.displayName;
                     console.log('currentUser actualizado tras perfil:', currentUser);
                     await loadContacts();
                     if (selectedContact) await updateMessages();
