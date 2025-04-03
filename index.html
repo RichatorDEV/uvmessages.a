@@ -396,20 +396,13 @@
                     return;
                 }
 
-                // Obtener todos los usuarios para mapear IDs a usernames
-                const usersResponse = await fetch(`${BASE_URL}/api/users`);
-                if (!usersResponse.ok) throw new Error('Error al obtener usuarios para mensajes');
-                const users = await usersResponse.json();
-                console.log('Usuarios para mapear:', users);
-
                 messages.forEach(msg => {
                     const isSent = String(msg.sender_id) === String(currentUser.id);
                     console.log('Comparando IDs:', { senderId: msg.sender_id, currentUserId: currentUser.id, isSent });
-                    const sender = users.find(u => String(u.id) === String(msg.sender_id));
-                    const username = sender ? sender.username : 'Desconocido';
+                    const username = msg.sender_username || 'Desconocido';
                     const profilePic = isSent ? 
                         (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
-                        (msg.senderPicture ? `${BASE_URL}${msg.senderPicture}` : 'https://via.placeholder.com/30');
+                        (msg.sender_picture ? `${BASE_URL}${msg.sender_picture}` : 'https://via.placeholder.com/30');
                     console.log('Procesando mensaje:', { id: msg.id, isSent, username, profilePic, content: msg.content });
                     const msgElement = document.createElement('div');
                     msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
