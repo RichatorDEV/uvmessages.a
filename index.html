@@ -143,7 +143,7 @@
                 const response = await fetch(`${BASE_URL}/api/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, displayName: username }) // Enviar displayName explícitamente
+                    body: JSON.stringify({ username, password, displayName: username })
                 });
                 const data = await response.json();
                 console.log('Respuesta de registro:', data);
@@ -184,7 +184,7 @@
                         displayName: user.displayName || user.username, 
                         profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
                     };
-                    console.log('Usuario logueado:', currentUser);
+                    console.log('Usuario logueado con datos procesados:', currentUser);
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     document.getElementById('authSection').classList.add('hidden');
                     document.getElementById('msgSection').classList.remove('hidden');
@@ -410,7 +410,7 @@
 
             const formData = new FormData();
             formData.append('userId', currentUser.id);
-            formData.append('displayName', displayName || currentUser.displayName); // Enviar displayName actual si no hay nuevo
+            formData.append('displayName', displayName || currentUser.displayName);
             if (profilePicture) formData.append('profilePicture', profilePicture);
 
             try {
