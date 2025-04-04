@@ -85,7 +85,7 @@
     </div>
 
     <script>
-        const BASE_URL = 'https://uvmessages-production.up.railway.app'; // Verifica que esta sea la URL pública de tu backend
+        const BASE_URL = 'https://uvmessages-production.up.railway.app'; // Confirma esta URL con Railway
         let currentUser = null;
         let selectedContact = null;
 
@@ -107,10 +107,15 @@
         async function refreshUserData() {
             try {
                 console.log('Intentando refrescar datos desde:', `${BASE_URL}/api/users`);
-                const response = await fetch(`${BASE_URL}/api/users`);
+                const response = await fetch(`${BASE_URL}/api/users`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const users = await response.json();
                 console.log('Usuarios obtenidos para refrescar:', users);
@@ -131,7 +136,7 @@
             } catch (error) {
                 console.error('Error al refrescar usuario:', error.message);
                 document.getElementById('authMessage').textContent = 'Error al conectar con el servidor: ' + error.message;
-                showMainInterface(); // Mostrar interfaz aunque falle para depurar
+                showMainInterface(); // Mostrar interfaz para depurar
             }
         }
 
@@ -187,9 +192,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Respuesta de registro:', data);
@@ -220,9 +227,11 @@
             try {
                 console.log('Enviando solicitud a:', `${BASE_URL}/api/users`);
                 const response = await fetch(`${BASE_URL}/api/users`);
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const users = await response.json();
                 console.log('Usuarios obtenidos:', users);
@@ -283,9 +292,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id, contactId })
                 });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Respuesta de agregar contacto:', data);
@@ -309,9 +320,11 @@
             try {
                 console.log('Cargando contactos desde:', `${BASE_URL}/api/contacts?userId=${currentUser.id}`);
                 const response = await fetch(`${BASE_URL}/api/contacts?userId=${currentUser.id}`);
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const contacts = await response.json();
                 const contactsDiv = document.getElementById('contacts');
@@ -375,9 +388,11 @@
                         content: content
                     })
                 });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Respuesta de enviar mensaje:', data);
@@ -406,9 +421,11 @@
             try {
                 console.log('Cargando mensajes desde:', `${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
                 const response = await fetch(`${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const messages = await response.json();
                 const messagesDiv = document.getElementById('messages');
@@ -456,9 +473,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id, contactId: selectedContact })
                 });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Mensajes marcados como leídos:', data);
@@ -491,9 +510,11 @@
                     method: 'POST',
                     body: formData
                 });
+                console.log('Estado de la respuesta:', response.status, response.statusText);
                 if (!response.ok) {
-                    console.error('Respuesta no OK:', response.status, response.statusText);
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
+                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Respuesta de actualizar perfil:', data);
