@@ -160,6 +160,8 @@
             padding: 30px;
             border-radius: 15px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
         }
         .user-header {
             display: flex;
@@ -184,6 +186,26 @@
             padding: 5px 10px;
             width: auto;
             display: inline-block;
+        }
+        #group-members-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .group-member-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+        }
+        .group-member-option:last-child {
+            border-bottom: none;
+        }
+        .group-member-option input[type="checkbox"] {
+            margin-top: 5px;
+            width: auto;
         }
     </style>
 </head>
@@ -232,9 +254,9 @@
     <div id="group-creation">
         <h3>Crear Grupo</h3>
         <input type="text" id="group-name" placeholder="Nombre del grupo">
-        <select id="group-members" multiple style="height: 100px;">
-            <!-- Se llenará dinámicamente -->
-        </select>
+        <div id="group-members-list">
+            <!-- Se llenará dinámicamente con checkboxes -->
+        </div>
         <button onclick="createGroup()">Crear</button>
         <button onclick="hideGroupCreation()">Cancelar</button>
     </div>
@@ -459,20 +481,24 @@
             hideSettings();
         }
 
-        function showGroupCreation() {
+        async function showGroupCreation() {
             document.getElementById('group-creation').style.display = 'block';
-            const memberSelect = document.getElementById('group-members');
-            memberSelect.innerHTML = '';
-            fetch(`${BASE_URL}/contacts/${currentUser}`)
-                .then(response => response.json())
-                .then(contacts => {
-                    contacts.forEach(contact => {
-                        const option = document.createElement('option');
-                        option.value = contact;
-                        option.textContent = contact;
-                        memberSelect.appendChild(option);
-                    });
-                });
+            const memberList = document.getElementById('group-members-list');
+            memberList.innerHTML = '';
+            const response = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+            const contacts = await response.json();
+            for (const contact of contacts) {
+                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                const picData = await picResponse.json();
+                const div = document.createElement('div');
+                div.className = 'group-member-option';
+                div.innerHTML = `
+                    <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                    <span>${contact}</span>
+                    <input type="checkbox" value="${contact}">
+                `;
+                memberList.appendChild(div);
+            }
         }
 
         function hideGroupCreation() {
@@ -481,8 +507,8 @@
 
         async function createGroup() {
             const groupName = document.getElementById('group-name').value;
-            const memberSelect = document.getElementById('group-members');
-            const members = Array.from(memberSelect.selectedOptions).map(option => option.value);
+            const checkboxes = document.querySelectorAll('#group-members-list input[type="checkbox"]:checked');
+            const members = Array.from(checkboxes).map(checkbox => checkbox.value);
             if (groupName && members.length > 0) {
                 const response = await fetch(`${BASE_URL}/groups`, {
                     method: 'POST',
