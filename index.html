@@ -6,7 +6,7 @@
     <title>Plataforma de Mensajería Moderna</title>
     <link rel="icon" type="image/png" href="https://files.catbox.moe/aifcmw.png">
     <style>
-        /* Tu CSS original se mantiene igual */
+        /* CSS original con ajustes para centrar títulos */
         * {
             margin: 0;
             padding: 0;
@@ -177,6 +177,10 @@
             width: 100%;
             max-width: 400px;
         }
+        #settings h3, #group-settings h3 {
+            text-align: center; /* Centrar títulos */
+            margin-bottom: 20px;
+        }
         .user-header {
             display: flex;
             align-items: center;
@@ -227,6 +231,13 @@
             margin-left: 10px;
         }
         .group-settings-button:hover {
+            background: #cc0000;
+        }
+        #delete-group-button {
+            background: #ff4444; /* Color rojo para eliminación */
+            margin-top: 10px;
+        }
+        #delete-group-button:hover {
             background: #cc0000;
         }
     </style>
@@ -298,6 +309,7 @@
         <div id="group-members-settings">
             <!-- Se llenará dinámicamente con miembros y opción de expulsar -->
         </div>
+        <button id="delete-group-button" onclick="deleteGroup()">Eliminar Grupo</button>
         <button onclick="hideGroupSettings()">Cerrar</button>
     </div>
 
@@ -311,7 +323,7 @@
         let unreadMessages = {}; // Almacena IDs de mensajes no leídos por contacto/grupo
         let allMessages = {}; // Almacena todos los mensajes precargados por chatId
         let profilePics = {}; // Almacena fotos de perfil precargadas
-        const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/q0qka5.png'; // Nueva foto por defecto
+        const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/q0qka5.png'; // Foto por defecto
         let ws = null; // WebSocket para actualizaciones en tiempo real
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
@@ -829,6 +841,28 @@
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al expulsar miembro');
+            }
+        }
+
+        async function deleteGroup() {
+            if (confirm('¿Estás seguro de que quieres eliminar este grupo? Esta acción no se puede deshacer.')) {
+                const response = await fetch(`${BASE_URL}/delete-group`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: currentContact, username: currentUser })
+                });
+                if (response.ok) {
+                    alert('Grupo eliminado con éxito');
+                    delete allMessages[currentContact]; // Eliminar mensajes locales
+                    currentContact = null; // Limpiar chat actual
+                    document.getElementById('current-contact').textContent = '';
+                    document.getElementById('messages').innerHTML = '';
+                    hideGroupSettings();
+                    await loadContactsAndGroups();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al eliminar el grupo');
+                }
             }
         }
     </script>
