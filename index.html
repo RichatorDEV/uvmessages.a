@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UV Messages</title>
+    <title>Plataforma de Mensajería Moderna</title>
     <link rel="icon" type="image/png" href="https://files.catbox.moe/aifcmw.png">
     <style>
-        /* CSS original con ajustes para centrar títulos */
         * {
             margin: 0;
             padding: 0;
@@ -178,7 +177,7 @@
             max-width: 400px;
         }
         #settings h3, #group-settings h3 {
-            text-align: center; /* Centrar títulos */
+            text-align: center;
             margin-bottom: 20px;
         }
         .user-header {
@@ -234,7 +233,7 @@
             background: #cc0000;
         }
         #delete-group-button {
-            background: #ff4444; /* Color rojo para eliminación */
+            background: #ff4444;
             margin-top: 10px;
         }
         #delete-group-button:hover {
@@ -448,34 +447,59 @@
         function setupWebSocket() {
             ws = new WebSocket(`wss://mi-proyecto-production-1b77.up.railway.app/ws?username=${currentUser}`);
             ws.onopen = () => console.log('WebSocket conectado');
-            ws.onmessage = (event) => {
+            ws.onmessage = async (event) => {
                 const message = JSON.parse(event.data);
                 console.log('Mensaje recibido vía WebSocket:', message);
-                const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
 
-                allMessages[chatId] = allMessages[chatId] || [];
-                allMessages[chatId].push(message);
-
-                if (chatId === currentContact) {
-                    const messagesDiv = document.getElementById('messages');
-                    const div = document.createElement('div');
-                    div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
-                    div.innerHTML = `
-                        <div class="message-header">
-                            <img src="${profilePics[message.sender]}" class="profile-pic">
-                            <span class="message-sender">${message.sender}</span>
-                        </div>
-                        <div class="message-content">${message.text}</div>
-                        <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
-                    `;
-                    messagesDiv.appendChild(div);
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                } else if (message.sender !== currentUser) {
-                    unreadMessages[chatId] = unreadMessages[chatId] || [];
-                    if (!unreadMessages[chatId].includes(message.id)) {
-                        unreadMessages[chatId].push(message.id);
+                if (message.type === 'group_deleted') {
+                    delete allMessages[message.group_id];
+                    if (currentContact === message.group_id) {
+                        currentContact = null;
+                        document.getElementById('current-contact').textContent = '';
+                        document.getElementById('messages').innerHTML = '';
                     }
                     loadContactsAndGroups();
+                } else {
+                    const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
+                    allMessages[chatId] = allMessages[chatId] || [];
+                    allMessages[chatId].push(message);
+
+                    // Si es un mensaje individual y el remitente no está en contactos, actualizar
+                    if (!message.group_id && message.sender !== currentUser) {
+                        const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                        const contacts = await contactResponse.json();
+                        if (!contacts.includes(message.sender)) {
+                            // El backend ya lo añadió, pero necesitamos reflejarlo localmente
+                            if (!profilePics[message.sender]) {
+                                const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
+                                const picData = await picResponse.json();
+                                profilePics[message.sender] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                            }
+                            loadContactsAndGroups(); // Recargar contactos
+                        }
+                    }
+
+                    if (chatId === currentContact) {
+                        const messagesDiv = document.getElementById('messages');
+                        const div = document.createElement('div');
+                        div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
+                        div.innerHTML = `
+                            <div class="message-header">
+                                <img src="${profilePics[message.sender]}" class="profile-pic">
+                                <span class="message-sender">${message.sender}</span>
+                            </div>
+                            <div class="message-content">${message.text}</div>
+                            <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                        `;
+                        messagesDiv.appendChild(div);
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    } else if (message.sender !== currentUser) {
+                        unreadMessages[chatId] = unreadMessages[chatId] || [];
+                        if (!unreadMessages[chatId].includes(message.id)) {
+                            unreadMessages[chatId].push(message.id);
+                        }
+                        loadContactsAndGroups();
+                    }
                 }
             };
             ws.onclose = () => console.log('WebSocket desconectado');
@@ -846,22 +870,30 @@
 
         async function deleteGroup() {
             if (confirm('¿Estás seguro de que quieres eliminar este grupo? Esta acción no se puede deshacer.')) {
-                const response = await fetch(`${BASE_URL}/delete-group`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group_id: currentContact, username: currentUser })
-                });
-                if (response.ok) {
-                    alert('Grupo eliminado con éxito');
-                    delete allMessages[currentContact]; // Eliminar mensajes locales
-                    currentContact = null; // Limpiar chat actual
-                    document.getElementById('current-contact').textContent = '';
-                    document.getElementById('messages').innerHTML = '';
-                    hideGroupSettings();
-                    await loadContactsAndGroups();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Error al eliminar el grupo');
+                try {
+                    console.log('Intentando eliminar grupo:', { group_id: currentContact, username: currentUser });
+                    const response = await fetch(`${BASE_URL}/delete-group`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: currentContact, username: currentUser })
+                    });
+                    console.log('Respuesta del servidor:', response.status);
+                    if (response.ok) {
+                        alert('Grupo eliminado con éxito');
+                        delete allMessages[currentContact];
+                        currentContact = null;
+                        document.getElementById('current-contact').textContent = '';
+                        document.getElementById('messages').innerHTML = '';
+                        hideGroupSettings();
+                        await loadContactsAndGroups();
+                    } else {
+                        const error = await response.json();
+                        console.error('Error en la respuesta:', error);
+                        alert(`Error al eliminar el grupo: ${error.error || 'Respuesta no OK'}`);
+                    }
+                } catch (err) {
+                    console.error('Error en fetch /delete-group:', err);
+                    alert('Error de conexión con el servidor al eliminar el grupo');
                 }
             }
         }
