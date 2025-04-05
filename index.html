@@ -308,7 +308,7 @@
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
         let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
-        let unreadMessages = {}; // Almacena el conteo de mensajes no leídos por contacto/grupo
+        let unreadMessages = {}; // Almacena IDs de mensajes no leídos por contacto/grupo
         let ws = null; // WebSocket para actualizaciones en tiempo real
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
@@ -398,7 +398,7 @@
                 const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
 
                 if (chatId === currentContact) {
-                    // Actualizar el chat actual en tiempo real
+                    // Mostrar mensaje en el chat actual y marcar como leído
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
                     const picData = await picResponse.json();
                     const messagesDiv = document.getElementById('messages');
@@ -414,11 +414,18 @@
                     `;
                     messagesDiv.appendChild(div);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    // Asegurar que el mensaje no se cuente como no leído
                     unreadMessages[chatId] = unreadMessages[chatId] || [];
-                    unreadMessages[chatId].push(message.id);
+                    if (!unreadMessages[chatId].includes(message.id)) {
+                        unreadMessages[chatId].push(message.id);
+                    }
                 } else if (message.sender !== currentUser) {
-                    // Actualizar notificaciones si no es el chat actual
-                    loadContactsAndGroups();
+                    // Añadir a mensajes no leídos si no es el chat actual
+                    unreadMessages[chatId] = unreadMessages[chatId] || [];
+                    if (!unreadMessages[chatId].includes(message.id)) {
+                        unreadMessages[chatId].push(message.id);
+                    }
+                    loadContactsAndGroups(); // Actualizar notificaciones
                 }
             };
             ws.onclose = () => console.log('WebSocket desconectado');
@@ -459,7 +466,7 @@
                     const picData = await picResponse.json();
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     const messages = await msgResponse.json();
-                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[contact]?.includes(msg.id)).length;
+                    const unreadCount = (unreadMessages[contact] || []).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
                     li.innerHTML = `
@@ -476,7 +483,7 @@
                 for (const group of groups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     const messages = await msgResponse.json();
-                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[group.group_id]?.includes(msg.id)).length;
+                    const unreadCount = (unreadMessages[group.group_id] || []).length;
                     const li = document.createElement('li');
                     li.className = 'group';
                     li.innerHTML = `
@@ -520,7 +527,7 @@
                     });
                 }
                 messageInput.value = ''; // Limpiar el input
-                // No añadimos el mensaje localmente aquí; el WebSocket lo hará
+                // El WebSocket lo mostrará
             }
         }
 
@@ -538,7 +545,6 @@
                 if (isGroupChat) {
                     const response = await fetch(`${BASE_URL}/group_messages/${currentContact}`);
                     const messages = await response.json();
-                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
                     for (const msg of messages) {
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
                         const picData = await picResponse.json();
@@ -553,12 +559,12 @@
                             <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                         `;
                         messagesDiv.appendChild(div);
-                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
                     }
+                    // Marcar todos los mensajes como leídos al cargar el chat
+                    unreadMessages[currentContact] = [];
                 } else {
                     const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
                     const messages = await response.json();
-                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
                     for (const msg of messages) {
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
                         const picData = await picResponse.json();
@@ -573,11 +579,12 @@
                             <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                         `;
                         messagesDiv.appendChild(div);
-                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
                     }
+                    // Marcar todos los mensajes como leídos al cargar el chat
+                    unreadMessages[currentContact] = [];
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                loadContactsAndGroups(); // Actualizar notificaciones al cambiar de chat
+                loadContactsAndGroups(); // Actualizar notificaciones
             }
         }
 
@@ -597,7 +604,7 @@
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            loadMessages(); // Esto también llama a loadContactsAndGroups()
+            loadMessages(); // Esto también actualiza notificaciones
         }
 
         function showSettings() {
@@ -785,7 +792,7 @@
                 });
                 if (response.ok) {
                     alert('Miembro añadido con éxito');
-                    showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                    showGroupSettings(currentContact);
                     loadContactsAndGroups(); // Actualizar explícitamente aquí
                 } else {
                     const error = await response.json();
@@ -804,7 +811,7 @@
             });
             if (response.ok) {
                 alert('Miembro expulsado con éxito');
-                showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                showGroupSettings(currentContact);
                 loadContactsAndGroups(); // Actualizar explícitamente aquí
             } else {
                 const error = await response.json();
