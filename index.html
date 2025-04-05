@@ -97,7 +97,7 @@
         }
         .message-timestamp {
             font-size: 0.8em;
-            margin-top: 8px; /* Espacio entre mensaje y timestamp */
+            margin-top: 8px;
             opacity: 0.7;
         }
         .profile-pic {
@@ -246,10 +246,12 @@
             const contacts = await response.json();
             const contactList = document.getElementById('contact-list');
             contactList.innerHTML = '';
-            contacts.forEach(contact => {
+            contacts.forEach(async contact => {
+                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                const picData = await picResponse.json();
                 const li = document.createElement('li');
                 li.className = 'contact';
-                li.innerHTML = `<img src="https://via.placeholder.com/40" class="profile-pic">${contact}`;
+                li.innerHTML = `<img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}`;
                 li.onclick = () => selectContact(contact);
                 contactList.appendChild(li);
             });
@@ -275,19 +277,21 @@
             if (currentContact) {
                 const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
                 const messages = await response.json();
-                messages.forEach(msg => {
+                for (const msg of messages) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
+                    const picData = await picResponse.json();
                     const div = document.createElement('div');
                     div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
                     div.innerHTML = `
                         <div class="message-sender">${msg.sender}</div>
                         <div class="message-content">
-                            <img src="https://via.placeholder.com/40" class="profile-pic">
+                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
                             <span>${msg.text}</span>
                         </div>
                         <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                     `;
                     messagesDiv.appendChild(div);
-                });
+                }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
             }
         }
@@ -314,7 +318,6 @@
                 reader.onload = async function(e) {
                     const profilePic = e.target.result;
                     document.getElementById('my-profile-pic').src = profilePic;
-                    // Enviar al backend
                     const response = await fetch(`${BASE_URL}/profile-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
