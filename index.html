@@ -69,6 +69,7 @@
             border-radius: 8px;
             cursor: pointer;
             transition: background 0.2s;
+            position: relative;
         }
         .contact:hover, .group:hover {
             background: #f5f5f5;
@@ -150,7 +151,7 @@
         #auth-toggle a:hover {
             text-decoration: underline;
         }
-        #settings, #group-creation {
+        #settings, #group-creation, #group-settings {
             display: none;
             position: fixed;
             top: 50%;
@@ -187,25 +188,33 @@
             width: auto;
             display: inline-block;
         }
-        #group-members-list {
+        #group-members-list, #group-members-settings {
             max-height: 200px;
             overflow-y: auto;
             margin: 10px 0;
         }
-        .group-member-option {
+        .group-member-option, .group-member-setting {
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 10px;
             border-bottom: 1px solid #e0e0e0;
-            cursor: pointer;
         }
-        .group-member-option:last-child {
+        .group-member-option:last-child, .group-member-setting:last-child {
             border-bottom: none;
         }
-        .group-member-option input[type="checkbox"] {
+        .group-member-option input[type="checkbox"], .group-member-setting input[type="checkbox"] {
             margin-top: 5px;
             width: auto;
+        }
+        .group-settings-button {
+            padding: 5px;
+            width: auto;
+            background: #ff4444;
+            margin-left: 10px;
+        }
+        .group-settings-button:hover {
+            background: #cc0000;
         }
     </style>
 </head>
@@ -242,7 +251,7 @@
         </div>
     </div>
 
-    <!-- Configuración -->
+    <!-- Configuración personal -->
     <div id="settings">
         <h3>Configuración</h3>
         <input type="file" id="profile-pic-input" accept="image/*">
@@ -259,6 +268,23 @@
         </div>
         <button onclick="createGroup()">Crear</button>
         <button onclick="hideGroupCreation()">Cancelar</button>
+    </div>
+
+    <!-- Ajustes del grupo -->
+    <div id="group-settings">
+        <h3>Ajustes del Grupo</h3>
+        <input type="file" id="group-pic-input" accept="image/*">
+        <button class="update-pic-button" onclick="updateGroupPic()">Actualizar Foto</button>
+        <input type="text" id="group-name-edit" placeholder="Nuevo nombre del grupo">
+        <button onclick="updateGroupName()">Cambiar Nombre</button>
+        <h4>Añadir Miembro</h4>
+        <input type="text" id="new-group-member" placeholder="Nombre del usuario">
+        <button onclick="addGroupMember()">Añadir</button>
+        <h4>Miembros</h4>
+        <div id="group-members-settings">
+            <!-- Se llenará dinámicamente con miembros y opción de expulsar -->
+        </div>
+        <button onclick="hideGroupSettings()">Cerrar</button>
     </div>
 
     <script>
@@ -361,7 +387,10 @@
             for (const group of groups) {
                 const li = document.createElement('li');
                 li.className = 'group';
-                li.innerHTML = `<img src="https://via.placeholder.com/40" class="profile-pic">${group.group_name} (Grupo)`; // Placeholder para foto de grupo
+                li.innerHTML = `
+                    <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                    ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
+                `;
                 li.onclick = () => selectContact(group.group_id, true);
                 contactList.appendChild(li);
             }
@@ -414,7 +443,7 @@
                                 <span class="message-sender">${msg.sender}</span>
                             </div>
                             <div class="message-content">${msg.text}</div>
-                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
+                            <div class="message-timestamp">${new Date(msg.timestamp).toLocale intentionalString()}</div>
                         `;
                         messagesDiv.appendChild(div);
                     }
@@ -525,6 +554,111 @@
                 }
             } else {
                 alert('Debes ingresar un nombre y seleccionar al menos un miembro');
+            }
+        }
+
+        async function showGroupSettings(groupId) {
+            currentContact = groupId; // Necesario para las funciones de ajuste
+            document.getElementById('group-settings').style.display = 'block';
+            const memberList = document.getElementById('group-members-settings');
+            memberList.innerHTML = '';
+            const response = await fetch(`${BASE_URL}/group-members/${groupId}`);
+            const members = await response.json();
+            for (const member of members) {
+                const picResponse = await fetch(`${BASE_URL}/profile-pic/${member}`);
+                const picData = await picResponse.json();
+                const div = document.createElement('div');
+                div.className = 'group-member-setting';
+                div.innerHTML = `
+                    <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                    <span>${member}</span>
+                    ${member !== currentUser ? '<button class="group-settings-button" onclick="removeGroupMember(\'' + member + '\')">Expulsar</button>' : ''}
+                `;
+                memberList.appendChild(div);
+            }
+        }
+
+        function hideGroupSettings() {
+            document.getElementById('group-settings').style.display = 'none';
+            loadContactsAndGroups(); // Refrescar la lista tras cambios
+        }
+
+        async function updateGroupPic() {
+            const fileInput = document.getElementById('group-pic-input');
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const groupPic = e.target.result;
+                    const response = await fetch(`${BASE_URL}/group-pic`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: currentContact, group_pic: groupPic, username: currentUser })
+                    });
+                    if (response.ok) {
+                        alert('Foto del grupo actualizada con éxito');
+                        hideGroupSettings();
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Error al actualizar la foto');
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function updateGroupName() {
+            const groupName = document.getElementById('group-name-edit').value;
+            if (groupName) {
+                const response = await fetch(`${BASE_URL}/group-name`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: currentContact, group_name: groupName, username: currentUser })
+                });
+                if (response.ok) {
+                    alert('Nombre del grupo actualizado con éxito');
+                    hideGroupSettings();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al actualizar el nombre');
+                }
+            } else {
+                alert('Debes ingresar un nuevo nombre');
+            }
+        }
+
+        async function addGroupMember() {
+            const newMember = document.getElementById('new-group-member').value;
+            if (newMember) {
+                const response = await fetch(`${BASE_URL}/group-add-member`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_id: currentContact, username: currentUser, new_member: newMember })
+                });
+                if (response.ok) {
+                    alert('Miembro añadido con éxito');
+                    showGroupSettings(currentContact); // Refrescar la lista de miembros
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al añadir miembro');
+                }
+            } else {
+                alert('Debes ingresar un nombre de usuario');
+            }
+        }
+
+        async function removeGroupMember(member) {
+            const response = await fetch(`${BASE_URL}/group-remove-member`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_id: currentContact, username: currentUser, member_to_remove: member })
+            });
+            if (response.ok) {
+                alert('Miembro expulsado con éxito');
+                showGroupSettings(currentContact); // Refrescar la lista de miembros
+            } else {
+                const error = await response.json();
+                alert(error.error || 'Error al expulsar miembro');
             }
         }
     </script>
