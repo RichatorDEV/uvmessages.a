@@ -184,9 +184,9 @@
             background: #e0e0e0;
         }
         .update-pic-button {
-            padding: 5px 10px;
-            width: auto;
-            display: inline-block;
+            padding: 10px;
+            width: 100%;
+            margin: 5px 0;
         }
         #group-members-list, #group-members-settings {
             max-height: 200px;
@@ -263,6 +263,7 @@
     <div id="group-creation">
         <h3>Crear Grupo</h3>
         <input type="text" id="group-name" placeholder="Nombre del grupo">
+        <input type="file" id="group-pic-create" accept="image/*" required>
         <div id="group-members-list">
             <!-- Se llenará dinámicamente con checkboxes -->
         </div>
@@ -569,13 +570,31 @@
 
         async function createGroup() {
             const groupName = document.getElementById('group-name').value;
+            const fileInput = document.getElementById('group-pic-create');
+            const file = fileInput.files[0];
             const checkboxes = document.querySelectorAll('#group-members-list input[type="checkbox"]:checked');
             const members = Array.from(checkboxes).map(checkbox => checkbox.value);
-            if (groupName && members.length > 0) {
+
+            if (!groupName) {
+                alert('Debes ingresar un nombre para el grupo');
+                return;
+            }
+            if (!file) {
+                alert('Debes seleccionar una foto para el grupo');
+                return;
+            }
+            if (members.length === 0) {
+                alert('Debes seleccionar al menos un miembro');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const groupPic = e.target.result;
                 const response = await fetch(`${BASE_URL}/groups`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group_name: groupName, members, creator: currentUser })
+                    body: JSON.stringify({ group_name: groupName, members, creator: currentUser, group_pic: groupPic })
                 });
                 if (response.ok) {
                     alert('Grupo creado con éxito');
@@ -585,9 +604,8 @@
                     const error = await response.json();
                     alert(error.error || 'Error al crear grupo');
                 }
-            } else {
-                alert('Debes ingresar un nombre y seleccionar al menos un miembro');
-            }
+            };
+            reader.readAsDataURL(file);
         }
 
         async function showGroupSettings(groupId) {
@@ -623,7 +641,7 @@
                 const reader = new FileReader();
                 reader.onload = async function(e) {
                     const groupPic = e.target.result;
-                    console.log('Foto del grupo cargada:', groupPic.substring(0, 50) + '...');
+                    console.log('Foto del grupo cargada (longitud):', groupPic.length);
                     const response = await fetch(`${BASE_URL}/group-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
