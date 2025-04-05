@@ -251,7 +251,7 @@
                 <button class="settings-button" onclick="showSettings()">⚙️</button>
             </div>
             <input type="text" id="new-contact" placeholder="Agregar contacto">
-            <button onclick="addContact()">Agregar</ COOKbutton>
+            <button onclick="addContact()">Agregar</button>
             <button onclick="showGroupCreation()">Crear Grupo</button>
             <ul id="contact-list"></ul>
         </div>
@@ -302,12 +302,17 @@
 
     <script>
         let currentUser = null;
-        let currentContact = null;
-        let isGroupChat = false;
+        let currentContact = null; // Puede ser un contacto o un group_id
+        let isGroupChat = false;   // Indica si el chat actual es un grupo
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
+        let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
+        let unreadMessages = {}; // Almacena el conteo de mensajes no leídos por contacto/grupo
+
+        console.log('Script cargado. BASE_URL:', BASE_URL);
 
         function toggleAuth() {
+            console.log('toggleAuth llamado. Modo actual:', isLoginMode);
             if (isLoginMode) {
                 document.getElementById('auth-title').textContent = 'Registrarse';
                 document.getElementById('auth-button').textContent = 'Registrarse';
@@ -320,42 +325,64 @@
                 document.getElementById('toggle-text').innerHTML = 'O <a onclick="toggleAuth()">regístrate</a>';
             }
             isLoginMode = !isLoginMode;
+            console.log('Modo cambiado a:', isLoginMode);
         }
 
         async function login() {
+            console.log('login llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const response = await fetch(`${BASE_URL}/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            if (response.ok) {
-                const user = await response.json();
-                currentUser = user.username;
-                document.getElementById('auth-container').style.display = 'none';
-                document.getElementById('messenger-container').style.display = 'flex';
-                document.getElementById('my-username').textContent = currentUser;
-                document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
-                loadContactsAndGroups();
-            } else {
-                alert('Usuario o contraseña incorrectos');
+            console.log('Datos de login:', { username, password });
+            try {
+                const response = await fetch(`${BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                console.log('Respuesta del servidor:', response.status);
+                if (response.ok) {
+                    const user = await response.json();
+                    console.log('Usuario logueado:', user);
+                    currentUser = user.username;
+                    document.getElementById('auth-container').style.display = 'none';
+                    document.getElementById('messenger-container').style.display = 'flex';
+                    document.getElementById('my-username').textContent = currentUser;
+                    document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
+                    loadContactsAndGroups();
+                } else {
+                    const error = await response.json();
+                    console.error('Error en login:', error);
+                    alert(error.error || 'Usuario o contraseña incorrectos');
+                }
+            } catch (err) {
+                console.error('Error en fetch /login:', err);
+                alert('Error de conexión con el servidor');
             }
         }
 
         async function register() {
+            console.log('register llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const response = await fetch(`${BASE_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            if (response.ok) {
-                alert('Usuario registrado con éxito');
-                toggleAuth();
-            } else {
-                alert('Error al registrar usuario');
+            console.log('Datos de registro:', { username, password });
+            try {
+                const response = await fetch(`${BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                console.log('Respuesta del servidor:', response.status);
+                if (response.ok) {
+                    alert('Usuario registrado con éxito');
+                    toggleAuth();
+                } else {
+                    const error = await response.json();
+                    console.error('Error en registro:', error);
+                    alert(error.error || 'Error al registrar usuario');
+                }
+            } catch (err) {
+                console.error('Error en fetch /register:', err);
+                alert('Error de conexión con el servidor');
             }
         }
 
@@ -370,46 +397,68 @@
                 loadContactsAndGroups();
                 document.getElementById('new-contact').value = '';
             } else {
-                alert('Error al agregar contacto');
+                const error = await response.json();
+                alert(error.error || 'Error al agregar contacto');
             }
         }
 
         async function loadContactsAndGroups() {
-            const contactList = document.getElementById('contact-list');
-            contactList.innerHTML = '';
-
-            // Cargar contactos
-            const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-            const contacts = await contactResponse.json();
-            for (const contact of contacts) {
-                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
-                const picData = await picResponse.json();
-                const li = document.createElement('li');
-                li.className = 'contact';
-                li.innerHTML = `
-                    <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}
-                `;
-                li.onclick = () => selectContact(contact, false);
-                contactList.appendChild(li);
+            if (isLoadingContacts) {
+                console.log('Carga de contactos ya en progreso, esperando...');
+                return;
             }
+            isLoadingContacts = true;
+            const contactList = document.getElementById('contact-list');
+            contactList.innerHTML = ''; // Limpiar la lista antes de cargar
 
-            // Cargar grupos
-            const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-            const groups = await groupResponse.json();
-            for (const group of groups) {
-                const li = document.createElement('li');
-                li.className = 'group';
-                li.innerHTML = `
-                    <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
-                    ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
-                `;
-                li.onclick = () => selectContact(group.group_id, true);
-                contactList.appendChild(li);
+            try {
+                // Cargar contactos
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                const contacts = await contactResponse.json();
+                for (const contact of contacts) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                    const picData = await picResponse.json();
+                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
+                    const messages = await msgResponse.json();
+                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[contact]?.includes(msg.id)).length;
+                    const li = document.createElement('li');
+                    li.className = 'contact';
+                    li.innerHTML = `
+                        <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}
+                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                    `;
+                    li.onclick = () => selectContact(contact, false);
+                    contactList.appendChild(li);
+                }
+
+                // Cargar grupos
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                const groups = await groupResponse.json();
+                for (const group of groups) {
+                    const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
+                    const messages = await msgResponse.json();
+                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[group.group_id]?.includes(msg.id)).length;
+                    const li = document.createElement('li');
+                    li.className = 'group';
+                    li.innerHTML = `
+                        <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                        ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
+                    `;
+                    li.onclick = () => selectContact(group.group_id, true);
+                    contactList.appendChild(li);
+                }
+                console.log('Contactos y grupos cargados exitosamente');
+            } catch (err) {
+                console.error('Error al cargar contactos y grupos:', err);
+            } finally {
+                isLoadingContacts = false;
             }
         }
 
         async function sendMessage() {
-            const text = document.getElementById('message-input').value;
+            const messageInput = document.getElementById('message-input');
+            const text = messageInput.value.trim();
             if (text && currentContact) {
                 if (isGroupChat) {
                     await fetch(`${BASE_URL}/group_messages`, {
@@ -424,7 +473,7 @@
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
                 }
-                document.getElementById('message-input').value = '';
+                messageInput.value = '';
                 loadMessages();
             }
         }
@@ -440,45 +489,69 @@
             const messagesDiv = document.getElementById('messages');
             messagesDiv.innerHTML = '';
             if (currentContact) {
-                let messages;
                 if (isGroupChat) {
                     const response = await fetch(`${BASE_URL}/group_messages/${currentContact}`);
-                    messages = await response.json();
+                    const messages = await response.json();
+                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
+                    for (const msg of messages) {
+                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
+                        const picData = await picResponse.json();
+                        const div = document.createElement('div');
+                        div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
+                        div.innerHTML = `
+                            <div class="message-header">
+                                <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                                <span class="message-sender">${msg.sender}</span>
+                            </div>
+                            <div class="message-content">${msg.text}</div>
+                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
+                        `;
+                        messagesDiv.appendChild(div);
+                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
+                    }
                 } else {
                     const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
-                    messages = await response.json();
-                }
-                for (const msg of messages) {
-                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
-                    const picData = await picResponse.json();
-                    const div = document.createElement('div');
-                    div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
-                    div.innerHTML = `
-                        <div class="message-header">
-                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                            <span class="message-sender">${msg.sender}</span>
-                        </div>
-                        <div class="message-content">${msg.text}</div>
-                        <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
-                    `;
-                    messagesDiv.appendChild(div);
+                    const messages = await response.json();
+                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
+                    for (const msg of messages) {
+                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
+                        const picData = await picResponse.json();
+                        const div = document.createElement('div');
+                        div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
+                        div.innerHTML = `
+                            <div class="message-header">
+                                <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                                <span class="message-sender">${msg.sender}</span>
+                            </div>
+                            <div class="message-content">${msg.text}</div>
+                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
+                        `;
+                        messagesDiv.appendChild(div);
+                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
+                    }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                loadContactsAndGroups(); // Actualizar notificaciones al cambiar de chat
             }
+        }
+
+        async function getGroupName(groupId) {
+            const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
+            const groups = await response.json();
+            const group = groups.find(g => g.group_id === groupId);
+            return group ? group.group_name : groupId;
         }
 
         async function selectContact(contact, isGroup) {
             currentContact = contact;
             isGroupChat = isGroup;
             if (isGroup) {
-                const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                const groups = await response.json();
-                const group = groups.find(g => g.group_id === contact);
-                document.getElementById('current-contact').textContent = group ? `${group.group_name} (Grupo)` : contact;
+                const groupName = await getGroupName(contact);
+                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            loadMessages();
+            loadMessages(); // Esto también llama a loadContactsAndGroups()
         }
 
         function showSettings() {
@@ -487,7 +560,7 @@
 
         function hideSettings() {
             document.getElementById('settings').style.display = 'none';
-            loadContactsAndGroups();
+            loadContactsAndGroups(); // Actualizar al cerrar ajustes de cuenta
         }
 
         async function updateProfilePic() {
@@ -498,15 +571,21 @@
                 reader.onload = async function(e) {
                     const profilePic = e.target.result;
                     document.getElementById('my-profile-pic').src = profilePic;
-                    await fetch(`${BASE_URL}/profile-pic`, {
+                    const response = await fetch(`${BASE_URL}/profile-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username: currentUser, profilePic })
                     });
+                    if (response.ok) {
+                        alert('Foto de perfil actualizada con éxito');
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Error al actualizar la foto');
+                    }
                 };
                 reader.readAsDataURL(file);
             }
-            hideSettings();
+            hideSettings(); // Esto llama a loadContactsAndGroups()
         }
 
         async function showGroupCreation() {
@@ -540,22 +619,37 @@
             const checkboxes = document.querySelectorAll('#group-members-list input[type="checkbox"]:checked');
             const members = Array.from(checkboxes).map(checkbox => checkbox.value);
 
-            if (groupName && file && members.length > 0) {
-                const reader = new FileReader();
-                reader.onload = async function(e) {
-                    const groupPic = e.target.result;
-                    await fetch(`${BASE_URL}/groups`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ group_name: groupName, members, creator: currentUser, group_pic: groupPic })
-                    });
+            if (!groupName) {
+                alert('Debes ingresar un nombre para el grupo');
+                return;
+            }
+            if (!file) {
+                alert('Debes seleccionar una foto para el grupo');
+                return;
+            }
+            if (members.length === 0) {
+                alert('Debes seleccionar al menos un miembro');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const groupPic = e.target.result;
+                const response = await fetch(`${BASE_URL}/groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group_name: groupName, members, creator: currentUser, group_pic: groupPic })
+                });
+                if (response.ok) {
+                    alert('Grupo creado con éxito');
                     hideGroupCreation();
                     loadContactsAndGroups();
-                };
-                reader.readAsDataURL(file);
-            } else {
-                alert('Debes ingresar un nombre, seleccionar una foto y al menos un miembro');
-            }
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al crear grupo');
+                }
+            };
+            reader.readAsDataURL(file);
         }
 
         async function showGroupSettings(groupId) {
@@ -581,7 +675,7 @@
 
         function hideGroupSettings() {
             document.getElementById('group-settings').style.display = 'none';
-            loadContactsAndGroups();
+            loadContactsAndGroups(); // Actualizar al cerrar ajustes de grupo
         }
 
         async function updateGroupPic() {
@@ -591,51 +685,85 @@
                 const reader = new FileReader();
                 reader.onload = async function(e) {
                     const groupPic = e.target.result;
-                    await fetch(`${BASE_URL}/group-pic`, {
+                    console.log('Foto del grupo cargada (longitud):', groupPic.length);
+                    const response = await fetch(`${BASE_URL}/group-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, group_pic: groupPic, username: currentUser })
                     });
-                    loadContactsAndGroups();
-                    hideGroupSettings();
+                    if (response.ok) {
+                        alert('Foto del grupo actualizada con éxito');
+                        loadContactsAndGroups(); // Actualizar explícitamente aquí
+                        hideGroupSettings();
+                    } else {
+                        const error = await response.json();
+                        console.error('Error al actualizar la foto:', error);
+                        alert(error.error || 'Error al actualizar la foto');
+                    }
                 };
                 reader.readAsDataURL(file);
+            } else {
+                alert('Por favor, selecciona una foto');
             }
         }
 
         async function updateGroupName() {
             const groupName = document.getElementById('group-name-edit').value;
             if (groupName) {
-                await fetch(`${BASE_URL}/group-name`, {
+                const response = await fetch(`${BASE_URL}/group-name`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_id: currentContact, group_name: groupName, username: currentUser })
                 });
-                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
-                loadContactsAndGroups();
-                hideGroupSettings();
+                if (response.ok) {
+                    alert('Nombre del grupo actualizado con éxito');
+                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                    loadContactsAndGroups(); // Actualizar explícitamente aquí
+                    hideGroupSettings();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al actualizar el nombre');
+                }
+            } else {
+                alert('Debes ingresar un nuevo nombre');
             }
         }
 
         async function addGroupMember() {
             const newMember = document.getElementById('new-group-member').value;
             if (newMember) {
-                await fetch(`${BASE_URL}/group-add-member`, {
+                const response = await fetch(`${BASE_URL}/group-add-member`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_id: currentContact, username: currentUser, new_member: newMember })
                 });
-                showGroupSettings(currentContact);
+                if (response.ok) {
+                    alert('Miembro añadido con éxito');
+                    showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                    loadContactsAndGroups(); // Actualizar explícitamente aquí
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Error al añadir miembro');
+                }
+            } else {
+                alert('Debes ingresar un nombre de usuario');
             }
         }
 
         async function removeGroupMember(member) {
-            await fetch(`${BASE_URL}/group-remove-member`, {
+            const response = await fetch(`${BASE_URL}/group-remove-member`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ group_id: currentContact, username: currentUser, member_to_remove: member })
             });
-            showGroupSettings(currentContact);
+            if (response.ok) {
+                alert('Miembro expulsado con éxito');
+                showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                loadContactsAndGroups(); // Actualizar explícitamente aquí
+            } else {
+                const error = await response.json();
+                alert(error.error || 'Error al expulsar miembro');
+            }
         }
     </script>
 </body>
