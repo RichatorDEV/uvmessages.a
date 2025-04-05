@@ -307,7 +307,8 @@
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
         let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
-        let unreadMessages = {}; // Almacena el conteo de mensajes no leídos por contacto/grupo
+        let unreadMessages = {}; // IDs de mensajes leídos por contacto/grupo
+        let allMessages = {};    // Almacena todos los mensajes por contacto/grupo
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -348,6 +349,7 @@
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
+                    await loadAllMessages(); // Cargar todos los mensajes al iniciar
                     loadContactsAndGroups();
                 } else {
                     const error = await response.json();
@@ -402,6 +404,31 @@
             }
         }
 
+        async function loadAllMessages() {
+            try {
+                // Cargar mensajes de contactos
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                const contacts = await contactResponse.json();
+                for (const contact of contacts) {
+                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
+                    allMessages[contact] = await msgResponse.json();
+                    unreadMessages[contact] = unreadMessages[contact] || [];
+                }
+
+                // Cargar mensajes de grupos
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                const groups = await groupResponse.json();
+                for (const group of groups) {
+                    const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
+                    allMessages[group.group_id] = await msgResponse.json();
+                    unreadMessages[group.group_id] = unreadMessages[group.group_id] || [];
+                }
+                console.log('Todos los mensajes cargados en memoria:', Object.keys(allMessages));
+            } catch (err) {
+                console.error('Error al cargar todos los mensajes:', err);
+            }
+        }
+
         async function loadContactsAndGroups() {
             if (isLoadingContacts) {
                 console.log('Carga de contactos ya en progreso, esperando...');
@@ -418,8 +445,7 @@
                 for (const contact of contacts) {
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
                     const picData = await picResponse.json();
-                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
-                    const messages = await msgResponse.json();
+                    const messages = allMessages[contact] || [];
                     const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[contact]?.includes(msg.id)).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
@@ -435,8 +461,7 @@
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
                 for (const group of groups) {
-                    const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
-                    const messages = await msgResponse.json();
+                    const messages = allMessages[group.group_id] || [];
                     const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[group.group_id]?.includes(msg.id)).length;
                     const li = document.createElement('li');
                     li.className = 'group';
@@ -460,21 +485,59 @@
             const messageInput = document.getElementById('message-input');
             const text = messageInput.value.trim();
             if (text && currentContact) {
+                const timestamp = new Date().toISOString();
+                const message = {
+                    id: Date.now(), // ID temporal, el servidor debería devolver uno real
+                    sender: currentUser,
+                    text,
+                    timestamp
+                };
+
+                // Enviar al servidor
                 if (isGroupChat) {
-                    await fetch(`${BASE_URL}/group_messages`, {
+                    const response = await fetch(`${BASE_URL}/group_messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, sender: currentUser, text })
                     });
+                    if (response.ok) {
+                        const serverMessage = await response.json();
+                        message.id = serverMessage.id || message.id; // Usar ID del servidor si está disponible
+                    }
                 } else {
-                    await fetch(`${BASE_URL}/messages`, {
+                    const response = await fetch(`${BASE_URL}/messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
+                    if (response.ok) {
+                        const serverMessage = await response.json();
+                        message.id = serverMessage.id || message.id; // Usar ID del servidor si está disponible
+                    }
                 }
+
+                // Agregar a la memoria
+                allMessages[currentContact] = allMessages[currentContact] || [];
+                allMessages[currentContact].push(message);
+
+                // Agregar al DOM si es el chat actual
+                if (currentContact) {
+                    const messagesDiv = document.getElementById('messages');
+                    const div = document.createElement('div');
+                    div.className = 'message me';
+                    div.innerHTML = `
+                        <div class="message-header">
+                            <img src="${document.getElementById('my-profile-pic').src}" class="profile-pic">
+                            <span class="message-sender">${currentUser}</span>
+                        </div>
+                        <div class="message-content">${text}</div>
+                        <div class="message-timestamp">${new Date(timestamp).toLocaleString()}</div>
+                    `;
+                    messagesDiv.appendChild(div);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+
                 messageInput.value = '';
-                loadMessages();
             }
         }
 
@@ -487,51 +550,29 @@
 
         async function loadMessages() {
             const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML = '';
-            if (currentContact) {
-                if (isGroupChat) {
-                    const response = await fetch(`${BASE_URL}/group_messages/${currentContact}`);
-                    const messages = await response.json();
-                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
-                    for (const msg of messages) {
-                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
-                        const picData = await picResponse.json();
-                        const div = document.createElement('div');
-                        div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
-                        div.innerHTML = `
-                            <div class="message-header">
-                                <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                                <span class="message-sender">${msg.sender}</span>
-                            </div>
-                            <div class="message-content">${msg.text}</div>
-                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
-                        `;
-                        messagesDiv.appendChild(div);
-                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
-                    }
-                } else {
-                    const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
-                    const messages = await response.json();
-                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
-                    for (const msg of messages) {
-                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
-                        const picData = await picResponse.json();
-                        const div = document.createElement('div');
-                        div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
-                        div.innerHTML = `
-                            <div class="message-header">
-                                <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                                <span class="message-sender">${msg.sender}</span>
-                            </div>
-                            <div class="message-content">${msg.text}</div>
-                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
-                        `;
-                        messagesDiv.appendChild(div);
+            messagesDiv.innerHTML = ''; // Cargar inicialmente o al cambiar de chat
+            if (currentContact && allMessages[currentContact]) {
+                unreadMessages[currentContact] = unreadMessages[currentContact] || [];
+                for (const msg of allMessages[currentContact]) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
+                    const picData = await picResponse.json();
+                    const div = document.createElement('div');
+                    div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
+                    div.innerHTML = `
+                        <div class="message-header">
+                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                            <span class="message-sender">${msg.sender}</span>
+                        </div>
+                        <div class="message-content">${msg.text}</div>
+                        <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
+                    `;
+                    messagesDiv.appendChild(div);
+                    if (!unreadMessages[currentContact].includes(msg.id)) {
                         unreadMessages[currentContact].push(msg.id); // Marcar como leído
                     }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                loadContactsAndGroups(); // Actualizar notificaciones al cambiar de chat
+                loadContactsAndGroups(); // Actualizar notificaciones
             }
         }
 
@@ -551,7 +592,7 @@
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            loadMessages(); // Esto también llama a loadContactsAndGroups()
+            loadMessages(); // Mostrar mensajes desde memoria
         }
 
         function showSettings() {
@@ -560,7 +601,7 @@
 
         function hideSettings() {
             document.getElementById('settings').style.display = 'none';
-            loadContactsAndGroups(); // Actualizar al cerrar ajustes de cuenta
+            loadContactsAndGroups();
         }
 
         async function updateProfilePic() {
@@ -585,7 +626,7 @@
                 };
                 reader.readAsDataURL(file);
             }
-            hideSettings(); // Esto llama a loadContactsAndGroups()
+            hideSettings();
         }
 
         async function showGroupCreation() {
@@ -643,6 +684,7 @@
                 if (response.ok) {
                     alert('Grupo creado con éxito');
                     hideGroupCreation();
+                    await loadAllMessages(); // Recargar mensajes para incluir el nuevo grupo
                     loadContactsAndGroups();
                 } else {
                     const error = await response.json();
@@ -675,7 +717,7 @@
 
         function hideGroupSettings() {
             document.getElementById('group-settings').style.display = 'none';
-            loadContactsAndGroups(); // Actualizar al cerrar ajustes de grupo
+            loadContactsAndGroups();
         }
 
         async function updateGroupPic() {
@@ -685,7 +727,6 @@
                 const reader = new FileReader();
                 reader.onload = async function(e) {
                     const groupPic = e.target.result;
-                    console.log('Foto del grupo cargada (longitud):', groupPic.length);
                     const response = await fetch(`${BASE_URL}/group-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -693,7 +734,7 @@
                     });
                     if (response.ok) {
                         alert('Foto del grupo actualizada con éxito');
-                        loadContactsAndGroups(); // Actualizar explícitamente aquí
+                        loadContactsAndGroups();
                         hideGroupSettings();
                     } else {
                         const error = await response.json();
@@ -718,7 +759,7 @@
                 if (response.ok) {
                     alert('Nombre del grupo actualizado con éxito');
                     document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
-                    loadContactsAndGroups(); // Actualizar explícitamente aquí
+                    loadContactsAndGroups();
                     hideGroupSettings();
                 } else {
                     const error = await response.json();
@@ -739,8 +780,8 @@
                 });
                 if (response.ok) {
                     alert('Miembro añadido con éxito');
-                    showGroupSettings(currentContact); // Esto no actualiza la lista aún
-                    loadContactsAndGroups(); // Actualizar explícitamente aquí
+                    showGroupSettings(currentContact);
+                    loadContactsAndGroups();
                 } else {
                     const error = await response.json();
                     alert(error.error || 'Error al añadir miembro');
@@ -758,8 +799,8 @@
             });
             if (response.ok) {
                 alert('Miembro expulsado con éxito');
-                showGroupSettings(currentContact); // Esto no actualiza la lista aún
-                loadContactsAndGroups(); // Actualizar explícitamente aquí
+                showGroupSettings(currentContact);
+                loadContactsAndGroups();
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al expulsar miembro');
