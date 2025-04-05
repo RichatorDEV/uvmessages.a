@@ -6,6 +6,7 @@
     <title>Plataforma de Mensajería Moderna</title>
     <link rel="icon" type="image/png" href="https://files.catbox.moe/aifcmw.png">
     <style>
+        /* Tu CSS original se mantiene igual */
         * {
             margin: 0;
             padding: 0;
@@ -499,7 +500,6 @@
             const text = messageInput.value.trim();
             if (text && currentContact) {
                 const message = {
-                    id: Date.now(), // ID temporal, el servidor asignará uno real
                     sender: currentUser,
                     text,
                     timestamp: new Date().toISOString()
@@ -519,25 +519,8 @@
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
                 }
-                ws.send(JSON.stringify(message)); // Enviar a través de WebSocket
-                messageInput.value = '';
-                const picResponse = await fetch(`${BASE_URL}/profile-pic/${currentUser}`);
-                const picData = await picResponse.json();
-                const messagesDiv = document.getElementById('messages');
-                const div = document.createElement('div');
-                div.className = 'message me';
-                div.innerHTML = `
-                    <div class="message-header">
-                        <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                        <span class="message-sender">${currentUser}</span>
-                    </div>
-                    <div class="message-content">${text}</div>
-                    <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
-                `;
-                messagesDiv.appendChild(div);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                unreadMessages[currentContact] = unreadMessages[currentContact] || [];
-                unreadMessages[currentContact].push(message.id);
+                messageInput.value = ''; // Limpiar el input
+                // No añadimos el mensaje localmente aquí; el WebSocket lo hará
             }
         }
 
