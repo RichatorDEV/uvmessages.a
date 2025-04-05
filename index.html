@@ -306,14 +306,14 @@
         let isGroupChat = false;   // Indica si el chat actual es un grupo
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
-        let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
-        let unreadMessages = {}; // IDs de mensajes leídos por contacto/grupo
-        let allMessages = {};    // Almacena todos los mensajes por contacto/grupo
+        let isLoadingContacts = false;
+        let unreadMessages = {}; // IDs de mensajes leídos
+        let allMessages = {};    // Todos los mensajes en memoria
+        let ws = null;           // WebSocket
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
         function toggleAuth() {
-            console.log('toggleAuth llamado. Modo actual:', isLoginMode);
             if (isLoginMode) {
                 document.getElementById('auth-title').textContent = 'Registrarse';
                 document.getElementById('auth-button').textContent = 'Registrarse';
@@ -326,34 +326,29 @@
                 document.getElementById('toggle-text').innerHTML = 'O <a onclick="toggleAuth()">regístrate</a>';
             }
             isLoginMode = !isLoginMode;
-            console.log('Modo cambiado a:', isLoginMode);
         }
 
         async function login() {
-            console.log('login llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            console.log('Datos de login:', { username, password });
             try {
                 const response = await fetch(`${BASE_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                console.log('Respuesta del servidor:', response.status);
                 if (response.ok) {
                     const user = await response.json();
-                    console.log('Usuario logueado:', user);
                     currentUser = user.username;
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
-                    await loadAllMessages(); // Cargar todos los mensajes al iniciar
+                    await loadAllMessages();
                     loadContactsAndGroups();
+                    setupWebSocket();
                 } else {
                     const error = await response.json();
-                    console.error('Error en login:', error);
                     alert(error.error || 'Usuario o contraseña incorrectos');
                 }
             } catch (err) {
@@ -363,23 +358,19 @@
         }
 
         async function register() {
-            console.log('register llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            console.log('Datos de registro:', { username, password });
             try {
                 const response = await fetch(`${BASE_URL}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                console.log('Respuesta del servidor:', response.status);
                 if (response.ok) {
                     alert('Usuario registrado con éxito');
                     toggleAuth();
                 } else {
                     const error = await response.json();
-                    console.error('Error en registro:', error);
                     alert(error.error || 'Error al registrar usuario');
                 }
             } catch (err) {
@@ -406,7 +397,6 @@
 
         async function loadAllMessages() {
             try {
-                // Cargar mensajes de contactos
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
                 for (const contact of contacts) {
@@ -414,8 +404,6 @@
                     allMessages[contact] = await msgResponse.json();
                     unreadMessages[contact] = unreadMessages[contact] || [];
                 }
-
-                // Cargar mensajes de grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
                 for (const group of groups) {
@@ -423,23 +411,19 @@
                     allMessages[group.group_id] = await msgResponse.json();
                     unreadMessages[group.group_id] = unreadMessages[group.group_id] || [];
                 }
-                console.log('Todos los mensajes cargados en memoria:', Object.keys(allMessages));
+                console.log('Todos los mensajes cargados en memoria');
             } catch (err) {
-                console.error('Error al cargar todos los mensajes:', err);
+                console.error('Error al cargar mensajes:', err);
             }
         }
 
         async function loadContactsAndGroups() {
-            if (isLoadingContacts) {
-                console.log('Carga de contactos ya en progreso, esperando...');
-                return;
-            }
+            if (isLoadingContacts) return;
             isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
-            contactList.innerHTML = ''; // Limpiar la lista antes de cargar
+            contactList.innerHTML = '';
 
             try {
-                // Cargar contactos
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
                 for (const contact of contacts) {
@@ -457,7 +441,6 @@
                     contactList.appendChild(li);
                 }
 
-                // Cargar grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
                 for (const group of groups) {
@@ -473,7 +456,6 @@
                     li.onclick = () => selectContact(group.group_id, true);
                     contactList.appendChild(li);
                 }
-                console.log('Contactos y grupos cargados exitosamente');
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err);
             } finally {
@@ -481,62 +463,81 @@
             }
         }
 
+        function setupWebSocket() {
+            ws = new WebSocket(`wss://mi-proyecto-production-1b77.up.railway.app/ws?username=${currentUser}`);
+            ws.onopen = () => console.log('WebSocket conectado');
+            ws.onmessage = async (event) => {
+                const message = JSON.parse(event.data);
+                const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
+                allMessages[chatId] = allMessages[chatId] || [];
+                allMessages[chatId].push(message);
+                unreadMessages[chatId] = unreadMessages[chatId] || [];
+
+                if (chatId === currentContact) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
+                    const picData = await picResponse.json();
+                    const messagesDiv = document.getElementById('messages');
+                    const div = document.createElement('div');
+                    div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
+                    div.innerHTML = `
+                        <div class="message-header">
+                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                            <span class="message-sender">${message.sender}</span>
+                        </div>
+                        <div class="message-content">${message.text}</div>
+                        <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                    `;
+                    messagesDiv.appendChild(div);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    unreadMessages[chatId].push(message.id);
+                } else if (message.sender !== currentUser) {
+                    loadContactsAndGroups(); // Actualizar notificaciones si no es el chat actual
+                }
+            };
+            ws.onclose = () => console.log('WebSocket desconectado');
+            ws.onerror = (err) => console.error('Error en WebSocket:', err);
+        }
+
         async function sendMessage() {
             const messageInput = document.getElementById('message-input');
             const text = messageInput.value.trim();
             if (text && currentContact) {
-                const timestamp = new Date().toISOString();
                 const message = {
-                    id: Date.now(), // ID temporal, el servidor debería devolver uno real
+                    id: Date.now(), // ID temporal
                     sender: currentUser,
                     text,
-                    timestamp
+                    timestamp: new Date().toISOString()
                 };
-
-                // Enviar al servidor
                 if (isGroupChat) {
-                    const response = await fetch(`${BASE_URL}/group_messages`, {
+                    message.group_id = currentContact;
+                    await fetch(`${BASE_URL}/group_messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, sender: currentUser, text })
                     });
-                    if (response.ok) {
-                        const serverMessage = await response.json();
-                        message.id = serverMessage.id || message.id; // Usar ID del servidor si está disponible
-                    }
                 } else {
-                    const response = await fetch(`${BASE_URL}/messages`, {
+                    message.receiver = currentContact;
+                    await fetch(`${BASE_URL}/messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
-                    if (response.ok) {
-                        const serverMessage = await response.json();
-                        message.id = serverMessage.id || message.id; // Usar ID del servidor si está disponible
-                    }
                 }
-
-                // Agregar a la memoria
-                allMessages[currentContact] = allMessages[currentContact] || [];
+                ws.send(JSON.stringify(message)); // Enviar a través de WebSocket para que se refleje en tiempo real
                 allMessages[currentContact].push(message);
-
-                // Agregar al DOM si es el chat actual
-                if (currentContact) {
-                    const messagesDiv = document.getElementById('messages');
-                    const div = document.createElement('div');
-                    div.className = 'message me';
-                    div.innerHTML = `
-                        <div class="message-header">
-                            <img src="${document.getElementById('my-profile-pic').src}" class="profile-pic">
-                            <span class="message-sender">${currentUser}</span>
-                        </div>
-                        <div class="message-content">${text}</div>
-                        <div class="message-timestamp">${new Date(timestamp).toLocaleString()}</div>
-                    `;
-                    messagesDiv.appendChild(div);
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                }
-
+                const messagesDiv = document.getElementById('messages');
+                const div = document.createElement('div');
+                div.className = 'message me';
+                div.innerHTML = `
+                    <div class="message-header">
+                        <img src="${document.getElementById('my-profile-pic').src}" class="profile-pic">
+                        <span class="message-sender">${currentUser}</span>
+                    </div>
+                    <div class="message-content">${text}</div>
+                    <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                `;
+                messagesDiv.appendChild(div);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 messageInput.value = '';
             }
         }
@@ -550,7 +551,7 @@
 
         async function loadMessages() {
             const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML = ''; // Cargar inicialmente o al cambiar de chat
+            messagesDiv.innerHTML = '';
             if (currentContact && allMessages[currentContact]) {
                 unreadMessages[currentContact] = unreadMessages[currentContact] || [];
                 for (const msg of allMessages[currentContact]) {
@@ -568,11 +569,11 @@
                     `;
                     messagesDiv.appendChild(div);
                     if (!unreadMessages[currentContact].includes(msg.id)) {
-                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
+                        unreadMessages[currentContact].push(msg.id);
                     }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                loadContactsAndGroups(); // Actualizar notificaciones
+                loadContactsAndGroups();
             }
         }
 
@@ -592,7 +593,7 @@
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            loadMessages(); // Mostrar mensajes desde memoria
+            loadMessages();
         }
 
         function showSettings() {
@@ -660,16 +661,8 @@
             const checkboxes = document.querySelectorAll('#group-members-list input[type="checkbox"]:checked');
             const members = Array.from(checkboxes).map(checkbox => checkbox.value);
 
-            if (!groupName) {
-                alert('Debes ingresar un nombre para el grupo');
-                return;
-            }
-            if (!file) {
-                alert('Debes seleccionar una foto para el grupo');
-                return;
-            }
-            if (members.length === 0) {
-                alert('Debes seleccionar al menos un miembro');
+            if (!groupName || !file || members.length === 0) {
+                alert('Debes ingresar un nombre, seleccionar una foto y al menos un miembro');
                 return;
             }
 
@@ -684,7 +677,7 @@
                 if (response.ok) {
                     alert('Grupo creado con éxito');
                     hideGroupCreation();
-                    await loadAllMessages(); // Recargar mensajes para incluir el nuevo grupo
+                    await loadAllMessages();
                     loadContactsAndGroups();
                 } else {
                     const error = await response.json();
@@ -738,7 +731,6 @@
                         hideGroupSettings();
                     } else {
                         const error = await response.json();
-                        console.error('Error al actualizar la foto:', error);
                         alert(error.error || 'Error al actualizar la foto');
                     }
                 };
