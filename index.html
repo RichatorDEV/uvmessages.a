@@ -19,13 +19,10 @@
             justify-content: center;
             align-items: center;
         }
-        #login-container, #messenger-container {
+        #auth-container {
             background: white;
             border-radius: 15px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        #login-container {
             padding: 40px;
             width: 100%;
             max-width: 400px;
@@ -36,6 +33,9 @@
             max-width: 1000px;
             height: 80vh;
             flex-direction: row;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         #sidebar {
             width: 35%;
@@ -94,16 +94,16 @@
         }
         .message-sender {
             font-weight: bold;
-            margin-left: 10px; /* Espacio a la derecha de la foto */
+            margin-left: 10px;
         }
         .message-content {
-            margin-left: 50px; /* Alinea el texto con el espacio de la foto */
+            margin-left: 50px;
         }
         .message-timestamp {
             font-size: 0.8em;
             margin-top: 8px;
             opacity: 0.7;
-            margin-left: 50px; /* Alinea el timestamp con el mensaje */
+            margin-left: 50px;
         }
         .profile-pic {
             width: 40px;
@@ -116,9 +116,9 @@
             border: none;
             border-radius: 8px;
             margin: 5px 0;
+            width: 100%;
         }
         input {
-            width: 100%;
             background: #f5f5f5;
         }
         button {
@@ -129,6 +129,19 @@
         }
         button:hover {
             background: #0066cc;
+        }
+        #auth-toggle {
+            font-size: 0.9em;
+            text-align: center;
+            margin-top: 10px;
+        }
+        #auth-toggle a {
+            color: #0084ff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        #auth-toggle a:hover {
+            text-decoration: underline;
         }
         #settings {
             display: none;
@@ -149,13 +162,15 @@
     </style>
 </head>
 <body>
-    <!-- Login/Registro -->
-    <div id="login-container">
-        <h2>Iniciar Sesión / Registrarse</h2>
+    <!-- Autenticación -->
+    <div id="auth-container">
+        <h2 id="auth-title">Iniciar Sesión</h2>
         <input type="text" id="username" placeholder="Usuario">
         <input type="password" id="password" placeholder="Contraseña">
-        <button onclick="login()">Iniciar Sesión</button>
-        <button onclick="register()">Registrarse</button>
+        <button id="auth-button" onclick="login()">Iniciar Sesión</button>
+        <div id="auth-toggle">
+            <span id="toggle-text">O <a onclick="toggleAuth()">regístrate</a></span>
+        </div>
     </div>
 
     <!-- Mensajería -->
@@ -190,6 +205,22 @@
         let currentUser = null;
         let currentContact = null;
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
+        let isLoginMode = true;
+
+        function toggleAuth() {
+            if (isLoginMode) {
+                document.getElementById('auth-title').textContent = 'Registrarse';
+                document.getElementById('auth-button').textContent = 'Registrarse';
+                document.getElementById('auth-button').onclick = register;
+                document.getElementById('toggle-text').innerHTML = 'O <a onclick="toggleAuth()">inicia sesión</a>';
+            } else {
+                document.getElementById('auth-title').textContent = 'Iniciar Sesión';
+                document.getElementById('auth-button').textContent = 'Iniciar Sesión';
+                document.getElementById('auth-button').onclick = login;
+                document.getElementById('toggle-text').innerHTML = 'O <a onclick="toggleAuth()">regístrate</a>';
+            }
+            isLoginMode = !isLoginMode;
+        }
 
         async function login() {
             const username = document.getElementById('username').value;
@@ -202,7 +233,7 @@
             if (response.ok) {
                 const user = await response.json();
                 currentUser = user.username;
-                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('auth-container').style.display = 'none';
                 document.getElementById('messenger-container').style.display = 'flex';
                 document.getElementById('my-username').textContent = currentUser;
                 document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
@@ -223,6 +254,7 @@
             });
             if (response.ok) {
                 alert('Usuario registrado con éxito');
+                toggleAuth(); // Volver a modo inicio de sesión
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al registrar usuario');
