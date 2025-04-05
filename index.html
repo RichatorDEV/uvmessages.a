@@ -174,7 +174,7 @@
     <script>
         let currentUser = null;
         let currentContact = null;
-        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app'; // URL del backend en Railway
+        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
 
         async function login() {
             const username = document.getElementById('username').value;
@@ -189,10 +189,11 @@
                 document.getElementById('login-container').style.display = 'none';
                 document.getElementById('messenger-container').style.display = 'flex';
                 document.getElementById('my-username').textContent = currentUser;
-                document.getElementById('my-profile-pic').src = 'https://via.placeholder.com/40'; // Temporal
+                document.getElementById('my-profile-pic').src = 'https://via.placeholder.com/40';
                 loadContacts();
             } else {
-                alert('Usuario o contraseña incorrectos');
+                const error = await response.json();
+                alert(error.error || 'Usuario o contraseña incorrectos');
             }
         }
 
@@ -207,7 +208,8 @@
             if (response.ok) {
                 alert('Usuario registrado con éxito');
             } else {
-                alert('El usuario ya existe');
+                const error = await response.json();
+                alert(error.error || 'Error al registrar usuario');
             }
         }
 
@@ -292,7 +294,6 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     document.getElementById('my-profile-pic').src = e.target.result;
-                    // Pendiente: Enviar al backend (requiere endpoint adicional)
                     alert('Foto actualizada localmente. Pendiente de implementación en el backend.');
                 };
                 reader.readAsDataURL(file);
