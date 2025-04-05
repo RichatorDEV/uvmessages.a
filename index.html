@@ -291,10 +291,14 @@
         let currentUser = null;
         let currentContact = null; // Puede ser un contacto o un group_id
         let isGroupChat = false;   // Indica si el chat actual es un grupo
-        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
+        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app'; // Verifica esta URL
         let isLoginMode = true;
 
+        // Depuración inicial
+        console.log('Script cargado. BASE_URL:', BASE_URL);
+
         function toggleAuth() {
+            console.log('toggleAuth llamado. Modo actual:', isLoginMode);
             if (isLoginMode) {
                 document.getElementById('auth-title').textContent = 'Registrarse';
                 document.getElementById('auth-button').textContent = 'Registrarse';
@@ -307,44 +311,64 @@
                 document.getElementById('toggle-text').innerHTML = 'O <a onclick="toggleAuth()">regístrate</a>';
             }
             isLoginMode = !isLoginMode;
+            console.log('Modo cambiado a:', isLoginMode);
         }
 
         async function login() {
+            console.log('login llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const response = await fetch(`${BASE_URL}/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            if (response.ok) {
-                const user = await response.json();
-                currentUser = user.username;
-                document.getElementById('auth-container').style.display = 'none';
-                document.getElementById('messenger-container').style.display = 'flex';
-                document.getElementById('my-username').textContent = currentUser;
-                document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
-                loadContactsAndGroups();
-            } else {
-                const error = await response.json();
-                alert(error.error || 'Usuario o contraseña incorrectos');
+            console.log('Datos de login:', { username, password });
+            try {
+                const response = await fetch(`${BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                console.log('Respuesta del servidor:', response.status);
+                if (response.ok) {
+                    const user = await response.json();
+                    console.log('Usuario logueado:', user);
+                    currentUser = user.username;
+                    document.getElementById('auth-container').style.display = 'none';
+                    document.getElementById('messenger-container').style.display = 'flex';
+                    document.getElementById('my-username').textContent = currentUser;
+                    document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
+                    loadContactsAndGroups();
+                } else {
+                    const error = await response.json();
+                    console.error('Error en login:', error);
+                    alert(error.error || 'Usuario o contraseña incorrectos');
+                }
+            } catch (err) {
+                console.error('Error en fetch /login:', err);
+                alert('Error de conexión con el servidor');
             }
         }
 
         async function register() {
+            console.log('register llamado');
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const response = await fetch(`${BASE_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            if (response.ok) {
-                alert('Usuario registrado con éxito');
-                toggleAuth();
-            } else {
-                const error = await response.json();
-                alert(error.error || 'Error al registrar usuario');
+            console.log('Datos de registro:', { username, password });
+            try {
+                const response = await fetch(`${BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                console.log('Respuesta del servidor:', response.status);
+                if (response.ok) {
+                    alert('Usuario registrado con éxito');
+                    toggleAuth();
+                } else {
+                    const error = await response.json();
+                    console.error('Error en registro:', error);
+                    alert(error.error || 'Error al registrar usuario');
+                }
+            } catch (err) {
+                console.error('Error en fetch /register:', err);
+                alert('Error de conexión con el servidor');
             }
         }
 
@@ -368,7 +392,6 @@
             const contactList = document.getElementById('contact-list');
             contactList.innerHTML = '';
 
-            // Cargar contactos individuales
             const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
             const contacts = await contactResponse.json();
             for (const contact of contacts) {
@@ -381,7 +404,6 @@
                 contactList.appendChild(li);
             }
 
-            // Cargar grupos
             const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
             const groups = await groupResponse.json();
             for (const group of groups) {
@@ -443,7 +465,7 @@
                                 <span class="message-sender">${msg.sender}</span>
                             </div>
                             <div class="message-content">${msg.text}</div>
-                            <div class="message-timestamp">${new Date(msg.timestamp).toLocale intentionalString()}</div>
+                            <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                         `;
                         messagesDiv.appendChild(div);
                     }
@@ -558,7 +580,7 @@
         }
 
         async function showGroupSettings(groupId) {
-            currentContact = groupId; // Necesario para las funciones de ajuste
+            currentContact = groupId;
             document.getElementById('group-settings').style.display = 'block';
             const memberList = document.getElementById('group-members-settings');
             memberList.innerHTML = '';
@@ -580,7 +602,7 @@
 
         function hideGroupSettings() {
             document.getElementById('group-settings').style.display = 'none';
-            loadContactsAndGroups(); // Refrescar la lista tras cambios
+            loadContactsAndGroups();
         }
 
         async function updateGroupPic() {
@@ -637,7 +659,7 @@
                 });
                 if (response.ok) {
                     alert('Miembro añadido con éxito');
-                    showGroupSettings(currentContact); // Refrescar la lista de miembros
+                    showGroupSettings(currentContact);
                 } else {
                     const error = await response.json();
                     alert(error.error || 'Error al añadir miembro');
@@ -655,7 +677,7 @@
             });
             if (response.ok) {
                 alert('Miembro expulsado con éxito');
-                showGroupSettings(currentContact); // Refrescar la lista de miembros
+                showGroupSettings(currentContact);
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al expulsar miembro');
