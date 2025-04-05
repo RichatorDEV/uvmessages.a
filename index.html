@@ -294,6 +294,7 @@
         let isGroupChat = false;   // Indica si el chat actual es un grupo
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
+        let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -389,32 +390,46 @@
         }
 
         async function loadContactsAndGroups() {
-            const contactList = document.getElementById('contact-list');
-            contactList.innerHTML = '';
-
-            const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-            const contacts = await contactResponse.json();
-            for (const contact of contacts) {
-                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
-                const picData = await picResponse.json();
-                const li = document.createElement('li');
-                li.className = 'contact';
-                li.innerHTML = `<img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}`;
-                li.onclick = () => selectContact(contact, false);
-                contactList.appendChild(li);
+            if (isLoadingContacts) {
+                console.log('Carga de contactos ya en progreso, esperando...');
+                return;
             }
+            isLoadingContacts = true;
+            const contactList = document.getElementById('contact-list');
+            contactList.innerHTML = ''; // Limpiar la lista antes de cargar
 
-            const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-            const groups = await groupResponse.json();
-            for (const group of groups) {
-                const li = document.createElement('li');
-                li.className = 'group';
-                li.innerHTML = `
-                    <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
-                    ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
-                `;
-                li.onclick = () => selectContact(group.group_id, true);
-                contactList.appendChild(li);
+            try {
+                // Cargar contactos
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                const contacts = await contactResponse.json();
+                for (const contact of contacts) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                    const picData = await picResponse.json();
+                    const li = document.createElement('li');
+                    li.className = 'contact';
+                    li.innerHTML = `<img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}`;
+                    li.onclick = () => selectContact(contact, false);
+                    contactList.appendChild(li);
+                }
+
+                // Cargar grupos
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                const groups = await groupResponse.json();
+                for (const group of groups) {
+                    const li = document.createElement('li');
+                    li.className = 'group';
+                    li.innerHTML = `
+                        <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                        ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
+                    `;
+                    li.onclick = () => selectContact(group.group_id, true);
+                    contactList.appendChild(li);
+                }
+                console.log('Contactos y grupos cargados exitosamente');
+            } catch (err) {
+                console.error('Error al cargar contactos y grupos:', err);
+            } finally {
+                isLoadingContacts = false;
             }
         }
 
