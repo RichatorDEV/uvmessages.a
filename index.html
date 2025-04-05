@@ -291,10 +291,9 @@
         let currentUser = null;
         let currentContact = null; // Puede ser un contacto o un group_id
         let isGroupChat = false;   // Indica si el chat actual es un grupo
-        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app'; // Verifica esta URL
+        const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
 
-        // Depuración inicial
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
         function toggleAuth() {
@@ -492,10 +491,22 @@
             }
         }
 
-        function selectContact(contact, isGroup) {
+        async function getGroupName(groupId) {
+            const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
+            const groups = await response.json();
+            const group = groups.find(g => g.group_id === groupId);
+            return group ? group.group_name : groupId;
+        }
+
+        async function selectContact(contact, isGroup) {
             currentContact = contact;
             isGroupChat = isGroup;
-            document.getElementById('current-contact').textContent = isGroup ? `${contact} (Grupo)` : contact;
+            if (isGroup) {
+                const groupName = await getGroupName(contact);
+                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+            } else {
+                document.getElementById('current-contact').textContent = contact;
+            }
             loadMessages();
         }
 
@@ -612,6 +623,7 @@
                 const reader = new FileReader();
                 reader.onload = async function(e) {
                     const groupPic = e.target.result;
+                    console.log('Foto del grupo cargada:', groupPic.substring(0, 50) + '...');
                     const response = await fetch(`${BASE_URL}/group-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -619,13 +631,17 @@
                     });
                     if (response.ok) {
                         alert('Foto del grupo actualizada con éxito');
+                        loadContactsAndGroups();
                         hideGroupSettings();
                     } else {
                         const error = await response.json();
+                        console.error('Error al actualizar la foto:', error);
                         alert(error.error || 'Error al actualizar la foto');
                     }
                 };
                 reader.readAsDataURL(file);
+            } else {
+                alert('Por favor, selecciona una foto');
             }
         }
 
@@ -639,6 +655,8 @@
                 });
                 if (response.ok) {
                     alert('Nombre del grupo actualizado con éxito');
+                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                    loadContactsAndGroups();
                     hideGroupSettings();
                 } else {
                     const error = await response.json();
