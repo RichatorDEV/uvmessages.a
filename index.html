@@ -2,543 +2,304 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>UV Messages</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Mensajería Moderna</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
-        .sidebar { 
-            height: 100%; width: 0; position: fixed; top: 0; left: 0; 
-            background: #2c3e50; overflow-x: hidden; transition: 0.5s; padding-top: 60px; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .sidebar a, .sidebar button { 
-            padding: 10px 15px; display: block; color: white; text-decoration: none; border: none; background: none; width: 100%; text-align: left; cursor: pointer; 
+        body {
+            background: #f0f2f5;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        .sidebar a:hover, .sidebar button:hover { background: #34495e; }
-        .main { margin-left: 0; transition: 0.5s; padding: 20px; }
-        .openbtn { font-size: 20px; cursor: pointer; background: #2c3e50; color: white; padding: 10px 15px; border: none; position: fixed; top: 10px; left: 10px; display: none; }
-        .auth-section, .messaging-section, .settings-section { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 800px; margin: 20px auto; }
-        .hidden { display: none; }
-        .contacts { margin-top: 20px; }
-        .contact { display: flex; align-items: center; padding: 10px; cursor: pointer; border-bottom: 1px solid #ddd; position: relative; }
-        .contact:hover { background: #f0f0f0; }
-        .contact img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
-        .notification { 
-            position: absolute; right: 10px; top: 50%; transform: translateY(-50%); 
-            background: #e74c3c; color: white; border-radius: 50%; width: 20px; height: 20px; 
-            text-align: center; line-height: 20px; font-size: 12px; 
+        #login-container, #messenger-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
-        .messages { margin-top: 20px; height: 400px; overflow-y: auto; }
-        .message { display: flex; align-items: center; padding: 10px; margin: 5px 0; border-radius: 5px; }
-        .message.sent { background: #e9ecef; justify-content: flex-start; }
-        .message.received { background: #d4edda; justify-content: flex-end; }
-        .message img { width: 30px; height: 30px; border-radius: 50%; margin-right: 10px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
-        button { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #2980b9; }
+        #login-container {
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        #messenger-container {
+            display: none;
+            width: 100%;
+            max-width: 1000px;
+            height: 80vh;
+            flex-direction: row;
+        }
+        #sidebar {
+            width: 35%;
+            background: #fff;
+            padding: 20px;
+            border-right: 1px solid #e0e0e0;
+        }
+        #chat-area {
+            width: 65%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        #contact-list {
+            list-style: none;
+        }
+        .contact {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .contact:hover {
+            background: #f5f5f5;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+            display: flex;
+            align-items: center;
+        }
+        .message.me {
+            background: #0084ff;
+            color: white;
+            margin-left: auto;
+        }
+        .message.other {
+            background: #e9ecef;
+            color: #333;
+        }
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+        input, button {
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            margin: 5px 0;
+        }
+        input {
+            width: 100%;
+            background: #f5f5f5;
+        }
+        button {
+            background: #0084ff;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #0066cc;
+        }
+        #settings {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .user-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
-    <div id="sidebar" class="sidebar hidden">
-        <a href="#" onclick="showMessaging()">Mensajería</a>
-        <a href="#" onclick="showSettings()">Configuración</a>
-        <button onclick="logout()">Cerrar Sesión</button>
+    <!-- Login/Registro -->
+    <div id="login-container">
+        <h2>Iniciar Sesión / Registrarse</h2>
+        <input type="text" id="username" placeholder="Usuario">
+        <input type="password" id="password" placeholder="Contraseña">
+        <button onclick="login()">Iniciar Sesión</button>
+        <button onclick="register()">Registrarse</button>
     </div>
 
-    <div id="main" class="main">
-        <button id="openbtn" class="openbtn" onclick="toggleSidebar()">☰</button>
-
-        <div class="auth-section" id="authSection">
-            <h2>UV Messages</h2>
-            <div id="registerForm">
-                <h3>Registro</h3>
-                <input type="text" id="regUsername" placeholder="Nombre de usuario"><br>
-                <input type="password" id="regPassword" placeholder="Contraseña"><br>
-                <button onclick="register()">Registrar</button>
+    <!-- Mensajería -->
+    <div id="messenger-container">
+        <div id="sidebar">
+            <div class="user-header">
+                <img id="my-profile-pic" class="profile-pic" src="https://via.placeholder.com/40" alt="Perfil">
+                <span id="my-username"></span>
+                <button onclick="showSettings()" style="margin-left: auto;">⚙️</button>
             </div>
-            <div id="loginForm">
-                <h3>Iniciar Sesión</h3>
-                <input type="text" id="loginUsername" placeholder="Nombre de usuario"><br>
-                <input type="password" id="loginPassword" placeholder="Contraseña"><br>
-                <button onclick="login()">Iniciar Sesión</button>
-            </div>
-            <p id="authMessage"></p>
+            <input type="text" id="new-contact" placeholder="Agregar contacto">
+            <button onclick="addContact()">Agregar</button>
+            <ul id="contact-list"></ul>
         </div>
+        <div id="chat-area">
+            <h3>Chat con <span id="current-contact"></span></h3>
+            <div id="messages"></div>
+            <input type="text" id="message-input" placeholder="Escribe un mensaje">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
 
-        <div class="messaging-section hidden" id="msgSection">
-            <h2>Bienvenido <span id="currentUser"></span></h2>
-            <p>ID: <span id="userId"></span></p>
-            <input type="text" id="newContact" placeholder="Agregar contacto (nombre de usuario)"><br>
-            <button onclick="addContact()">Agregar Contacto</button>
-            <p id="contactStatus"></p>
-            <div class="contacts" id="contacts"></div>
-            <div class="messages" id="messages"></div>
-            <textarea id="messageContent" placeholder="Escribe tu mensaje"></textarea><br>
-            <button onclick="sendMessage()">Enviar Mensaje</button>
-            <p id="messageStatus"></p>
-        </div>
-
-        <div class="settings-section hidden" id="settingsSection">
-            <h2>Configuración</h2>
-            <input type="file" id="profilePicture" accept="image/*"><br>
-            <button onclick="updateProfile()">Actualizar Foto de Perfil</button>
-            <p id="settingsStatus"></p>
-        </div>
+    <!-- Configuración -->
+    <div id="settings">
+        <h3>Configuración</h3>
+        <input type="file" id="profile-pic-input" accept="image/*">
+        <button onclick="updateProfilePic()">Actualizar Foto</button>
+        <button onclick="hideSettings()">Cerrar</button>
     </div>
 
     <script>
-        const BASE_URL = 'https://uvmessages-production.up.railway.app'; // Confirma esta URL con Railway
         let currentUser = null;
-        let selectedContact = null;
+        let currentContact = null;
+        // Reemplaza esta URL con la URL pública de tu backend en Railway
+        const BASE_URL = 'https://tu-proyecto.up.railway.app'; // ¡Actualiza esto!
 
-        window.onload = function() {
-            const storedUser = localStorage.getItem('currentUser');
-            console.log('LocalStorage crudo:', storedUser);
-            if (storedUser) {
-                currentUser = JSON.parse(storedUser);
-                console.log('Usuario cargado desde localStorage:', currentUser);
-                if (!currentUser.id || !currentUser.username) {
-                    console.error('Datos incompletos en localStorage, cerrando sesión');
-                    logout();
-                } else {
-                    refreshUserData();
-                }
-            }
-        };
-
-        async function refreshUserData() {
-            try {
-                console.log('Intentando refrescar datos desde:', `${BASE_URL}/api/users`);
-                const response = await fetch(`${BASE_URL}/api/users`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const users = await response.json();
-                console.log('Usuarios obtenidos para refrescar:', users);
-                const user = users.find(u => String(u.id) === String(currentUser.id));
-                if (user) {
-                    currentUser = {
-                        id: String(user.id),
-                        username: user.username,
-                        profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
-                    };
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    console.log('Usuario refrescado:', currentUser);
-                    showMainInterface();
-                } else {
-                    console.error('Usuario no encontrado en el servidor, cerrando sesión');
-                    logout();
-                }
-            } catch (error) {
-                console.error('Error al refrescar usuario:', error.message);
-                document.getElementById('authMessage').textContent = 'Error al conectar con el servidor: ' + error.message;
-                showMainInterface(); // Mostrar interfaz para depurar
-            }
-        }
-
-        function showMainInterface() {
-            console.log('Mostrando interfaz con currentUser:', currentUser);
-            document.getElementById('authSection').classList.add('hidden');
-            document.getElementById('msgSection').classList.remove('hidden');
-            document.getElementById('openbtn').style.display = 'block';
-            document.getElementById('sidebar').classList.remove('hidden');
-            document.getElementById('currentUser').textContent = currentUser ? currentUser.username : 'N/A';
-            document.getElementById('userId').textContent = currentUser ? currentUser.id : 'N/A';
-            loadContacts();
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const main = document.getElementById('main');
-            if (sidebar.style.width === '250px') {
-                sidebar.style.width = '0';
-                main.style.marginLeft = '0';
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const response = await fetch(`${BASE_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                currentUser = username;
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('messenger-container').style.display = 'flex';
+                document.getElementById('my-username').textContent = currentUser;
+                document.getElementById('my-profile-pic').src = 'https://via.placeholder.com/40'; // Temporal
+                loadContacts();
             } else {
-                sidebar.style.width = '250px';
-                main.style.marginLeft = '250px';
+                alert('Usuario o contraseña incorrectos');
             }
-        }
-
-        function showMessaging() {
-            document.getElementById('msgSection').classList.remove('hidden');
-            document.getElementById('settingsSection').classList.add('hidden');
-        }
-
-        function showSettings() {
-            document.getElementById('msgSection').classList.add('hidden');
-            document.getElementById('settingsSection').classList.remove('hidden');
         }
 
         async function register() {
-            const username = document.getElementById('regUsername').value;
-            const password = document.getElementById('regPassword').value;
-            const messageElement = document.getElementById('authMessage');
-
-            console.log('Registrando usuario:', { username, password });
-
-            if (!username || !password) {
-                messageElement.textContent = 'Completa ambos campos';
-                return;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const response = await fetch(`${BASE_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                alert('Usuario registrado con éxito');
+            } else {
+                alert('El usuario ya existe');
             }
-
-            try {
-                console.log('Enviando solicitud a:', `${BASE_URL}/api/users`);
-                const response = await fetch(`${BASE_URL}/api/users`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('Respuesta de registro:', data);
-
-                if (response.ok) {
-                    messageElement.textContent = `Usuario creado. Tu ID es: ${data.user.id}`;
-                } else {
-                    messageElement.textContent = `Error: ${data.error}`;
-                }
-            } catch (error) {
-                console.error('Error al registrar:', error.message);
-                messageElement.textContent = 'Error al conectar con el servidor: ' + error.message;
-            }
-        }
-
-        async function login() {
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
-            const messageElement = document.getElementById('authMessage');
-
-            console.log('Iniciando sesión:', { username, password });
-
-            if (!username || !password) {
-                messageElement.textContent = 'Completa ambos campos';
-                return;
-            }
-
-            try {
-                console.log('Enviando solicitud a:', `${BASE_URL}/api/users`);
-                const response = await fetch(`${BASE_URL}/api/users`);
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const users = await response.json();
-                console.log('Usuarios obtenidos:', users);
-                const user = users.find(u => u.username === username && u.password === password);
-
-                if (user) {
-                    currentUser = { 
-                        id: String(user.id), 
-                        username: user.username, 
-                        profilePicture: user.profilePicture ? `${BASE_URL}${user.profilePicture}` : 'https://via.placeholder.com/40'
-                    };
-                    console.log('Usuario logueado con datos procesados:', currentUser);
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    showMainInterface();
-                } else {
-                    messageElement.textContent = 'Usuario o contraseña incorrectos';
-                }
-            } catch (error) {
-                console.error('Error al iniciar sesión:', error.message);
-                messageElement.textContent = 'Error al conectar con el servidor: ' + error.message;
-            }
-        }
-
-        function logout() {
-            console.log('Cerrando sesión');
-            currentUser = null;
-            selectedContact = null;
-            localStorage.removeItem('currentUser');
-            document.getElementById('authSection').classList.remove('hidden');
-            document.getElementById('msgSection').classList.add('hidden');
-            document.getElementById('settingsSection').classList.add('hidden');
-            document.getElementById('openbtn').style.display = 'none';
-            document.getElementById('sidebar').classList.add('hidden');
-            document.getElementById('sidebar').style.width = '0';
-            document.getElementById('main').style.marginLeft = '0';
-            document.getElementById('authMessage').textContent = '';
-            document.getElementById('contactStatus').textContent = '';
-            document.getElementById('messageStatus').textContent = '';
         }
 
         async function addContact() {
-            if (!currentUser) return;
-
-            const contactId = document.getElementById('newContact').value;
-            const statusElement = document.getElementById('contactStatus');
-
-            console.log('Agregando contacto:', { userId: currentUser.id, contactId });
-
-            if (!contactId) {
-                statusElement.textContent = 'Ingresa un nombre de usuario';
-                return;
-            }
-
-            try {
-                console.log('Enviando solicitud a:', `${BASE_URL}/api/contacts`);
-                const response = await fetch(`${BASE_URL}/api/contacts`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser.id, contactId })
-                });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('Respuesta de agregar contacto:', data);
-
-                if (response.ok) {
-                    statusElement.textContent = 'Contacto agregado';
-                    document.getElementById('newContact').value = '';
-                    await loadContacts();
-                } else {
-                    statusElement.textContent = `Error: ${data.error}`;
-                }
-            } catch (error) {
-                console.error('Error al agregar contacto:', error.message);
-                statusElement.textContent = 'Error al conectar con el servidor: ' + error.message;
+            const contact = document.getElementById('new-contact').value;
+            const response = await fetch(`${BASE_URL}/contacts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUser, contact })
+            });
+            if (response.ok) {
+                loadContacts();
+                document.getElementById('new-contact').value = '';
+            } else {
+                const error = await response.json();
+                alert(error.error || 'Error al agregar contacto');
             }
         }
 
         async function loadContacts() {
-            if (!currentUser) return;
-
-            try {
-                console.log('Cargando contactos desde:', `${BASE_URL}/api/contacts?userId=${currentUser.id}`);
-                const response = await fetch(`${BASE_URL}/api/contacts?userId=${currentUser.id}`);
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const contacts = await response.json();
-                const contactsDiv = document.getElementById('contacts');
-                contactsDiv.innerHTML = '';
-
-                console.log('Contactos cargados para', currentUser.id, ':', contacts);
-
-                if (contacts.length === 0) {
-                    contactsDiv.innerHTML = '<p>No tienes contactos aún.</p>';
-                    return;
-                }
-
-                contacts.forEach(contact => {
-                    const profilePic = contact.profilePicture ? `${BASE_URL}${contact.profilePicture}` : 'https://via.placeholder.com/40';
-                    console.log('Procesando contacto:', { id: contact.id, username: contact.username, profilePic });
-                    const contactElement = document.createElement('div');
-                    contactElement.className = 'contact';
-                    contactElement.innerHTML = `
-                        <img src="${profilePic}" alt="${contact.username}" onerror="this.src='https://via.placeholder.com/40'; console.error('Error cargando imagen de contacto:', '${profilePic}');">
-                        <span>${contact.username}</span>
-                        ${contact.unreadCount > 0 ? `<span class="notification">${contact.unreadCount}</span>` : ''}
-                    `;
-                    contactElement.onclick = () => {
-                        selectedContact = String(contact.id);
-                        console.log('Contacto seleccionado:', selectedContact);
-                        updateMessages();
-                        markMessagesAsRead();
-                    };
-                    contactsDiv.appendChild(contactElement);
-                });
-            } catch (error) {
-                console.error('Error al cargar contactos:', error.message);
-                document.getElementById('contactStatus').textContent = `Error: ${error.message}`;
-            }
+            const response = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+            const contacts = await response.json();
+            const contactList = document.getElementById('contact-list');
+            contactList.innerHTML = '';
+            contacts.forEach(contact => {
+                const li = document.createElement('li');
+                li.className = 'contact';
+                li.innerHTML = `<img src="https://via.placeholder.com/40" class="profile-pic">${contact}`;
+                li.onclick = () => selectContact(contact);
+                contactList.appendChild(li);
+            });
         }
 
         async function sendMessage() {
-            if (!currentUser || !selectedContact) {
-                document.getElementById('messageStatus').textContent = 'Selecciona un contacto primero';
-                return;
-            }
-
-            const content = document.getElementById('messageContent').value;
-            const messageStatus = document.getElementById('messageStatus');
-
-            console.log('Enviando mensaje:', { senderId: currentUser.id, recipientId: selectedContact, content });
-
-            if (!content) {
-                messageStatus.textContent = 'Escribe un mensaje';
-                return;
-            }
-
-            try {
-                console.log('Enviando solicitud a:', `${BASE_URL}/api/messages`);
-                const response = await fetch(`${BASE_URL}/api/messages`, {
+            const messageInput = document.getElementById('message-input');
+            const text = messageInput.value;
+            if (text && currentContact) {
+                await fetch(`${BASE_URL}/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        senderId: currentUser.id,
-                        recipientId: selectedContact,
-                        content: content
-                    })
+                    body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                 });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('Respuesta de enviar mensaje:', data);
-
-                if (response.ok) {
-                    messageStatus.textContent = 'Mensaje enviado';
-                    document.getElementById('messageContent').value = '';
-                    await updateMessages();
-                    await loadContacts();
-                } else {
-                    messageStatus.textContent = `Error: ${data.error}`;
-                }
-            } catch (error) {
-                console.error('Error al enviar mensaje:', error.message);
-                messageStatus.textContent = 'Error al conectar con el servidor: ' + error.message;
+                messageInput.value = '';
+                loadMessages();
             }
         }
 
-        async function updateMessages() {
-            if (!currentUser || !selectedContact) {
-                console.error('No hay usuario o contacto seleccionado:', { currentUser, selectedContact });
-                document.getElementById('messageStatus').textContent = 'Selecciona un contacto primero';
-                return;
-            }
-
-            try {
-                console.log('Cargando mensajes desde:', `${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
-                const response = await fetch(`${BASE_URL}/api/messages?userId=${currentUser.id}&contactId=${selectedContact}`);
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
+        async function loadMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            if (currentContact) {
+                const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
                 const messages = await response.json();
-                const messagesDiv = document.getElementById('messages');
-                messagesDiv.innerHTML = '';
-
-                console.log('Mensajes cargados:', messages);
-                console.log('currentUser en updateMessages:', currentUser);
-
-                if (!messages.length) {
-                    messagesDiv.innerHTML = '<p>No hay mensajes aún.</p>';
-                    return;
-                }
-
                 messages.forEach(msg => {
-                    const isSent = String(msg.sender_id) === String(currentUser.id);
-                    console.log('Comparando IDs:', { senderId: msg.sender_id, currentUserId: currentUser.id, isSent });
-                    const username = msg.sender_username || 'Desconocido';
-                    const profilePic = isSent ? 
-                        (currentUser.profilePicture || 'https://via.placeholder.com/30') : 
-                        (msg.sender_picture ? `${BASE_URL}${msg.sender_picture}` : 'https://via.placeholder.com/30');
-                    console.log('Procesando mensaje:', { id: msg.id, isSent, username, profilePic, content: msg.content });
-                    const msgElement = document.createElement('div');
-                    msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
-                    msgElement.innerHTML = `
-                        <img src="${profilePic}" alt="${username}" onerror="this.src='https://via.placeholder.com/30'; console.error('Error cargando imagen de mensaje:', '${profilePic}');">
-                        <span>${username}: ${msg.content} (${new Date(msg.timestamp).toLocaleString()})</span>
-                    `;
-                    messagesDiv.appendChild(msgElement);
+                    const div = document.createElement('div');
+                    div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
+                    div.innerHTML = `<img src="https://via.placeholder.com/40" class="profile-pic">${msg.text} <small>(${new Date(msg.timestamp).toLocaleString()})</small>`;
+                    messagesDiv.appendChild(div);
                 });
-
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            } catch (error) {
-                console.error('Error al actualizar mensajes:', error.message);
-                document.getElementById('messageStatus').textContent = `Error: ${error.message}`;
             }
         }
 
-        async function markMessagesAsRead() {
-            if (!currentUser || !selectedContact) return;
-
-            try {
-                console.log('Marcando mensajes como leídos en:', `${BASE_URL}/api/messages/read`);
-                const response = await fetch(`${BASE_URL}/api/messages/read`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser.id, contactId: selectedContact })
-                });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('Mensajes marcados como leídos:', data);
-                await loadContacts();
-            } catch (error) {
-                console.error('Error al marcar mensajes como leídos:', error.message);
-            }
+        function selectContact(contact) {
+            currentContact = contact;
+            document.getElementById('current-contact').textContent = contact;
+            loadMessages();
         }
 
-        async function updateProfile() {
-            if (!currentUser) return;
-
-            const profilePicture = document.getElementById('profilePicture').files[0];
-            const statusElement = document.getElementById('settingsStatus');
-
-            if (!profilePicture) {
-                statusElement.textContent = 'Selecciona una foto';
-                return;
-            }
-
-            console.log('Actualizando perfil con foto');
-
-            const formData = new FormData();
-            formData.append('userId', currentUser.id);
-            formData.append('profilePicture', profilePicture);
-
-            try {
-                console.log('Enviando solicitud a:', `${BASE_URL}/api/upload-profile-picture`);
-                const response = await fetch(`${BASE_URL}/api/upload-profile-picture`, {
-                    method: 'POST',
-                    body: formData
-                });
-                console.log('Estado de la respuesta:', response.status, response.statusText);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Error en la respuesta:', { status: response.status, statusText: response.statusText, body: errorText });
-                    throw new Error(`Error HTTP: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-                const data = await response.json();
-                console.log('Respuesta de actualizar perfil:', data);
-
-                if (response.ok) {
-                    statusElement.textContent = 'Foto de perfil actualizada';
-                    currentUser.profilePicture = data.user.profilePicture ? `${BASE_URL}${data.user.profilePicture}` : null;
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    console.log('currentUser actualizado tras perfil:', currentUser);
-                    await loadContacts();
-                    if (selectedContact) await updateMessages();
-                } else {
-                    statusElement.textContent = `Error: ${data.error}`;
-                }
-            } catch (error) {
-                console.error('Error al actualizar perfil:', error.message);
-                statusElement.textContent = 'Error al conectar con el servidor: ' + error.message;
-            }
+        function showSettings() {
+            document.getElementById('settings').style.display = 'block';
         }
 
-        setInterval(() => {
-            if (currentUser) loadContacts();
-            if (currentUser && selectedContact) updateMessages();
-        }, 5000);
+        function hideSettings() {
+            document.getElementById('settings').style.display = 'none';
+        }
+
+        function updateProfilePic() {
+            const fileInput = document.getElementById('profile-pic-input');
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('my-profile-pic').src = e.target.result;
+                    // Pendiente: Enviar al backend (requiere endpoint adicional)
+                    alert('Foto actualizada localmente. Pendiente de implementación en el backend.');
+                };
+                reader.readAsDataURL(file);
+            }
+            hideSettings();
+        }
     </script>
 </body>
 </html>
