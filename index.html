@@ -34,8 +34,9 @@
             height: 80vh;
             flex-direction: row;
             background: white;
-            border-radius: 15px;
+            border-radius: 15px; /* Esquinas redondeadas */
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden; /* Asegura que el contenido respete las esquinas */
         }
         #sidebar {
             width: 35%;
@@ -130,10 +131,14 @@
         button:hover {
             background: #0066cc;
         }
+        #auth-title {
+            text-align: center; /* Centrar el título */
+            margin-bottom: 20px; /* Espacio debajo del título */
+        }
         #auth-toggle {
             font-size: 0.9em;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 20px; /* Más espacio entre credenciales y el texto */
         }
         #auth-toggle a {
             color: #0084ff;
@@ -159,6 +164,12 @@
             align-items: center;
             margin-bottom: 20px;
         }
+        .settings-button {
+            padding: 5px 10px; /* Tamaño más pequeño y consistente */
+            font-size: 1em; /* Tamaño de fuente normal */
+            border-radius: 8px; /* Esquinas redondeadas */
+            margin-left: auto;
+        }
     </style>
 </head>
 <body>
@@ -179,7 +190,7 @@
             <div class="user-header">
                 <img id="my-profile-pic" class="profile-pic" src="https://via.placeholder.com/40" alt="Perfil">
                 <span id="my-username"></span>
-                <button onclick="showSettings()" style="margin-left: auto;">⚙️</button>
+                <button class="settings-button" onclick="showSettings()">⚙️</button>
             </div>
             <input type="text" id="new-contact" placeholder="Agregar contacto">
             <button onclick="addContact()">Agregar</button>
@@ -254,7 +265,7 @@
             });
             if (response.ok) {
                 alert('Usuario registrado con éxito');
-                toggleAuth(); // Volver a modo inicio de sesión
+                toggleAuth();
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al registrar usuario');
