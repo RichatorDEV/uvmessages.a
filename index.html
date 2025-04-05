@@ -308,6 +308,7 @@
         let isLoginMode = true;
         let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
         let unreadMessages = {}; // Almacena el conteo de mensajes no leídos por contacto/grupo
+        let ws = null; // WebSocket para actualizaciones en tiempo real
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -349,6 +350,7 @@
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
                     loadContactsAndGroups();
+                    setupWebSocket(); // Configurar WebSocket después de iniciar sesión
                 } else {
                     const error = await response.json();
                     console.error('Error en login:', error);
@@ -384,6 +386,42 @@
                 console.error('Error en fetch /register:', err);
                 alert('Error de conexión con el servidor');
             }
+        }
+
+        function setupWebSocket() {
+            ws = new WebSocket(`wss://mi-proyecto-production-1b77.up.railway.app/ws?username=${currentUser}`);
+            ws.onopen = () => console.log('WebSocket conectado');
+            ws.onmessage = async (event) => {
+                const message = JSON.parse(event.data);
+                console.log('Mensaje recibido vía WebSocket:', message);
+                const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
+
+                if (chatId === currentContact) {
+                    // Actualizar el chat actual en tiempo real
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
+                    const picData = await picResponse.json();
+                    const messagesDiv = document.getElementById('messages');
+                    const div = document.createElement('div');
+                    div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
+                    div.innerHTML = `
+                        <div class="message-header">
+                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                            <span class="message-sender">${message.sender}</span>
+                        </div>
+                        <div class="message-content">${message.text}</div>
+                        <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                    `;
+                    messagesDiv.appendChild(div);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    unreadMessages[chatId] = unreadMessages[chatId] || [];
+                    unreadMessages[chatId].push(message.id);
+                } else if (message.sender !== currentUser) {
+                    // Actualizar notificaciones si no es el chat actual
+                    loadContactsAndGroups();
+                }
+            };
+            ws.onclose = () => console.log('WebSocket desconectado');
+            ws.onerror = (err) => console.error('Error en WebSocket:', err);
         }
 
         async function addContact() {
@@ -460,21 +498,46 @@
             const messageInput = document.getElementById('message-input');
             const text = messageInput.value.trim();
             if (text && currentContact) {
+                const message = {
+                    id: Date.now(), // ID temporal, el servidor asignará uno real
+                    sender: currentUser,
+                    text,
+                    timestamp: new Date().toISOString()
+                };
                 if (isGroupChat) {
+                    message.group_id = currentContact;
                     await fetch(`${BASE_URL}/group_messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, sender: currentUser, text })
                     });
                 } else {
+                    message.receiver = currentContact;
                     await fetch(`${BASE_URL}/messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
                 }
+                ws.send(JSON.stringify(message)); // Enviar a través de WebSocket
                 messageInput.value = '';
-                loadMessages();
+                const picResponse = await fetch(`${BASE_URL}/profile-pic/${currentUser}`);
+                const picData = await picResponse.json();
+                const messagesDiv = document.getElementById('messages');
+                const div = document.createElement('div');
+                div.className = 'message me';
+                div.innerHTML = `
+                    <div class="message-header">
+                        <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
+                        <span class="message-sender">${currentUser}</span>
+                    </div>
+                    <div class="message-content">${text}</div>
+                    <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
+                `;
+                messagesDiv.appendChild(div);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                unreadMessages[currentContact] = unreadMessages[currentContact] || [];
+                unreadMessages[currentContact].push(message.id);
             }
         }
 
