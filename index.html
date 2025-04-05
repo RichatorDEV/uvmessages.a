@@ -349,7 +349,6 @@
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
                     loadContactsAndGroups();
-                    startMessagePolling(); // Iniciar polling para notificaciones
                 } else {
                     const error = await response.json();
                     console.error('Error en login:', error);
@@ -532,16 +531,8 @@
                     }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                loadContactsAndGroups(); // Actualizar notificaciones
+                loadContactsAndGroups(); // Actualizar notificaciones al cambiar de chat
             }
-        }
-
-        function startMessagePolling() {
-            setInterval(async () => {
-                if (currentUser) {
-                    await loadContactsAndGroups();
-                }
-            }, 5000); // Revisar cada 5 segundos
         }
 
         async function getGroupName(groupId) {
@@ -556,11 +547,11 @@
             isGroupChat = isGroup;
             if (isGroup) {
                 const groupName = await getGroupName(contact);
-                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`; // Revertido a "Chat con"
+                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            loadMessages();
+            loadMessages(); // Esto también llama a loadContactsAndGroups()
         }
 
         function showSettings() {
@@ -569,6 +560,7 @@
 
         function hideSettings() {
             document.getElementById('settings').style.display = 'none';
+            loadContactsAndGroups(); // Actualizar al cerrar ajustes de cuenta
         }
 
         async function updateProfilePic() {
@@ -593,7 +585,7 @@
                 };
                 reader.readAsDataURL(file);
             }
-            hideSettings();
+            hideSettings(); // Esto llama a loadContactsAndGroups()
         }
 
         async function showGroupCreation() {
@@ -683,7 +675,7 @@
 
         function hideGroupSettings() {
             document.getElementById('group-settings').style.display = 'none';
-            loadContactsAndGroups();
+            loadContactsAndGroups(); // Actualizar al cerrar ajustes de grupo
         }
 
         async function updateGroupPic() {
@@ -701,7 +693,7 @@
                     });
                     if (response.ok) {
                         alert('Foto del grupo actualizada con éxito');
-                        loadContactsAndGroups();
+                        loadContactsAndGroups(); // Actualizar explícitamente aquí
                         hideGroupSettings();
                     } else {
                         const error = await response.json();
@@ -725,8 +717,8 @@
                 });
                 if (response.ok) {
                     alert('Nombre del grupo actualizado con éxito');
-                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`; // Revertido a "Chat con"
-                    loadContactsAndGroups();
+                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                    loadContactsAndGroups(); // Actualizar explícitamente aquí
                     hideGroupSettings();
                 } else {
                     const error = await response.json();
@@ -747,7 +739,8 @@
                 });
                 if (response.ok) {
                     alert('Miembro añadido con éxito');
-                    showGroupSettings(currentContact);
+                    showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                    loadContactsAndGroups(); // Actualizar explícitamente aquí
                 } else {
                     const error = await response.json();
                     alert(error.error || 'Error al añadir miembro');
@@ -765,7 +758,8 @@
             });
             if (response.ok) {
                 alert('Miembro expulsado con éxito');
-                showGroupSettings(currentContact);
+                showGroupSettings(currentContact); // Esto no actualiza la lista aún
+                loadContactsAndGroups(); // Actualizar explícitamente aquí
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al expulsar miembro');
