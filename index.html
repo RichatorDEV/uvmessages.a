@@ -247,7 +247,7 @@
     <div id="messenger-container">
         <div id="sidebar">
             <div class="user-header">
-                <img id="my-profile-pic" class="profile-pic" src="https://via.placeholder.com/40" alt="Perfil">
+                <img id="my-profile-pic" class="profile-pic" src="https://files.catbox.moe/3cmgbu.png" alt="Perfil">
                 <span id="my-username"></span>
                 <button class="settings-button" onclick="showSettings()">⚙️</button>
             </div>
@@ -311,6 +311,7 @@
         let unreadMessages = {}; // Almacena IDs de mensajes no leídos por contacto/grupo
         let allMessages = {}; // Almacena todos los mensajes precargados por chatId
         let profilePics = {}; // Almacena fotos de perfil precargadas
+        const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/3cmgbu.png'; // Nueva foto por defecto
         let ws = null; // WebSocket para actualizaciones en tiempo real
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
@@ -351,10 +352,9 @@
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
-                    document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
-                    await preloadData(); // Precargar todos los datos al iniciar sesión
+                    document.getElementById('my-profile-pic').src = user.profile_pic || DEFAULT_PROFILE_PIC;
+                    await preloadData();
                     setupWebSocket();
-                    // Seleccionar el primer chat automáticamente
                     const contactList = document.getElementById('contact-list');
                     if (contactList.children.length > 0) {
                         contactList.children[0].click();
@@ -398,15 +398,11 @@
 
         async function preloadData() {
             try {
-                // Cargar contactos
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
-
-                // Cargar grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
 
-                // Precargar fotos de perfil de todos los usuarios involucrados
                 const allUsers = new Set([...contacts, currentUser]);
                 for (const group of groups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
@@ -416,24 +412,21 @@
                 for (const user of allUsers) {
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${user}`);
                     const picData = await picResponse.json();
-                    profilePics[user] = picData.profile_pic || 'https://via.placeholder.com/40';
+                    profilePics[user] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                 }
 
-                // Precargar mensajes de contactos
                 for (const contact of contacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     const messages = await msgResponse.json();
                     allMessages[contact] = messages;
                 }
 
-                // Precargar mensajes de grupos
                 for (const group of groups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     const messages = await msgResponse.json();
                     allMessages[group.group_id] = messages;
                 }
 
-                // Cargar contactos y grupos en la interfaz
                 await loadContactsAndGroups(contacts, groups);
             } catch (err) {
                 console.error('Error al precargar datos:', err);
@@ -448,12 +441,10 @@
                 console.log('Mensaje recibido vía WebSocket:', message);
                 const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
 
-                // Actualizar mensajes precargados
                 allMessages[chatId] = allMessages[chatId] || [];
                 allMessages[chatId].push(message);
 
                 if (chatId === currentContact) {
-                    // Mostrar mensaje en el chat actual
                     const messagesDiv = document.getElementById('messages');
                     const div = document.createElement('div');
                     div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
@@ -468,12 +459,11 @@
                     messagesDiv.appendChild(div);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 } else if (message.sender !== currentUser) {
-                    // Añadir a mensajes no leídos si no es el chat actual
                     unreadMessages[chatId] = unreadMessages[chatId] || [];
                     if (!unreadMessages[chatId].includes(message.id)) {
                         unreadMessages[chatId].push(message.id);
                     }
-                    loadContactsAndGroups(); // Actualizar notificaciones
+                    loadContactsAndGroups();
                 }
             };
             ws.onclose = () => console.log('WebSocket desconectado');
@@ -493,7 +483,7 @@
                 allMessages[contact] = messages;
                 const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
                 const picData = await picResponse.json();
-                profilePics[contact] = picData.profile_pic || 'https://via.placeholder.com/40';
+                profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                 await loadContactsAndGroups();
                 document.getElementById('new-contact').value = '';
                 if (!currentContact) {
@@ -524,7 +514,6 @@
                     groups = await groupResponse.json();
                 }
 
-                // Renderizar contactos
                 for (const contact of contacts) {
                     const unreadCount = (unreadMessages[contact] || []).length;
                     const li = document.createElement('li');
@@ -537,13 +526,12 @@
                     contactList.appendChild(li);
                 }
 
-                // Renderizar grupos
                 for (const group of groups) {
                     const unreadCount = (unreadMessages[group.group_id] || []).length;
                     const li = document.createElement('li');
                     li.className = 'group';
                     li.innerHTML = `
-                        <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                        <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
                         ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
                         ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
                     `;
@@ -583,7 +571,6 @@
                     });
                 }
                 messageInput.value = '';
-                // El WebSocket lo añadirá a allMessages y lo mostrará
             }
         }
 
@@ -596,7 +583,7 @@
 
         function renderMessages() {
             const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML = ''; // Limpiar mensajes previos
+            messagesDiv.innerHTML = '';
             if (currentContact && allMessages[currentContact]) {
                 const messages = allMessages[currentContact];
                 for (const msg of messages) {
@@ -613,9 +600,8 @@
                     messagesDiv.appendChild(div);
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                // Marcar mensajes como leídos
                 unreadMessages[currentContact] = [];
-                loadContactsAndGroups(); // Actualizar notificaciones
+                loadContactsAndGroups();
             }
         }
 
@@ -635,7 +621,7 @@
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
-            renderMessages(); // Mostrar mensajes precargados inmediatamente
+            renderMessages();
         }
 
         function showSettings() {
@@ -663,7 +649,7 @@
                     });
                     if (response.ok) {
                         alert('Foto de perfil actualizada con éxito');
-                        renderMessages(); // Actualizar mensajes mostrados
+                        renderMessages();
                     } else {
                         const error = await response.json();
                         alert(error.error || 'Error al actualizar la foto');
@@ -818,7 +804,7 @@
                     alert('Miembro añadido con éxito');
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${newMember}`);
                     const picData = await picResponse.json();
-                    profilePics[newMember] = picData.profile_pic || 'https://via.placeholder.com/40';
+                    profilePics[newMember] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                     showGroupSettings(currentContact);
                     loadContactsAndGroups();
                 } else {
