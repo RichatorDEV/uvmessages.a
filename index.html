@@ -74,6 +74,18 @@
         .contact:hover, .group:hover {
             background: #f5f5f5;
         }
+        .notification {
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-left: 10px;
+        }
         .message {
             margin: 10px 0;
             padding: 10px 15px;
@@ -295,6 +307,7 @@
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
         let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
+        let unreadMessages = {}; // Almacena el conteo de mensajes no leídos por contacto/grupo
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -336,6 +349,7 @@
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
                     loadContactsAndGroups();
+                    startMessagePolling(); // Iniciar polling para notificaciones
                 } else {
                     const error = await response.json();
                     console.error('Error en login:', error);
@@ -405,9 +419,15 @@
                 for (const contact of contacts) {
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
                     const picData = await picResponse.json();
+                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
+                    const messages = await msgResponse.json();
+                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[contact]?.includes(msg.id)).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
-                    li.innerHTML = `<img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}`;
+                    li.innerHTML = `
+                        <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}
+                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                    `;
                     li.onclick = () => selectContact(contact, false);
                     contactList.appendChild(li);
                 }
@@ -416,10 +436,14 @@
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
                 for (const group of groups) {
+                    const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
+                    const messages = await msgResponse.json();
+                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[group.group_id]?.includes(msg.id)).length;
                     const li = document.createElement('li');
                     li.className = 'group';
                     li.innerHTML = `
                         <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
                         ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
                     `;
                     li.onclick = () => selectContact(group.group_id, true);
@@ -469,6 +493,7 @@
                 if (isGroupChat) {
                     const response = await fetch(`${BASE_URL}/group_messages/${currentContact}`);
                     const messages = await response.json();
+                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
                     for (const msg of messages) {
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
                         const picData = await picResponse.json();
@@ -483,10 +508,12 @@
                             <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                         `;
                         messagesDiv.appendChild(div);
+                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
                     }
                 } else {
                     const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
                     const messages = await response.json();
+                    unreadMessages[currentContact] = unreadMessages[currentContact] || [];
                     for (const msg of messages) {
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
                         const picData = await picResponse.json();
@@ -501,10 +528,20 @@
                             <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                         `;
                         messagesDiv.appendChild(div);
+                        unreadMessages[currentContact].push(msg.id); // Marcar como leído
                     }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                loadContactsAndGroups(); // Actualizar notificaciones
             }
+        }
+
+        function startMessagePolling() {
+            setInterval(async () => {
+                if (currentUser) {
+                    await loadContactsAndGroups();
+                }
+            }, 5000); // Revisar cada 5 segundos
         }
 
         async function getGroupName(groupId) {
@@ -519,7 +556,7 @@
             isGroupChat = isGroup;
             if (isGroup) {
                 const groupName = await getGroupName(contact);
-                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`; // Revertido a "Chat con"
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
@@ -688,7 +725,7 @@
                 });
                 if (response.ok) {
                     alert('Nombre del grupo actualizado con éxito');
-                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`; // Revertido a "Chat con"
                     loadContactsAndGroups();
                     hideGroupSettings();
                 } else {
