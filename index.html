@@ -251,7 +251,7 @@
                 <button class="settings-button" onclick="showSettings()">⚙️</button>
             </div>
             <input type="text" id="new-contact" placeholder="Agregar contacto">
-            <button onclick="addContact()">Agregar</button>
+            <button onclick="addContact()">Agregar</ COOKbutton>
             <button onclick="showGroupCreation()">Crear Grupo</button>
             <ul id="contact-list"></ul>
         </div>
@@ -306,12 +306,6 @@
         let isGroupChat = false;
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
-        let isLoadingContacts = false;
-        let unreadMessages = {};
-        let allMessages = {};
-        let ws = null;
-
-        console.log('Script cargado. BASE_URL:', BASE_URL);
 
         function toggleAuth() {
             if (isLoginMode) {
@@ -331,51 +325,37 @@
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            try {
-                const response = await fetch(`${BASE_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                if (response.ok) {
-                    const user = await response.json();
-                    currentUser = user.username;
-                    document.getElementById('auth-container').style.display = 'none';
-                    document.getElementById('messenger-container').style.display = 'flex';
-                    document.getElementById('my-username').textContent = currentUser;
-                    document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
-                    await loadAllMessages();
-                    loadContactsAndGroups();
-                    setupWebSocket();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Usuario o contraseña incorrectos');
-                }
-            } catch (err) {
-                console.error('Error en fetch /login:', err);
-                alert('Error de conexión con el servidor');
+            const response = await fetch(`${BASE_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                const user = await response.json();
+                currentUser = user.username;
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('messenger-container').style.display = 'flex';
+                document.getElementById('my-username').textContent = currentUser;
+                document.getElementById('my-profile-pic').src = user.profile_pic || 'https://via.placeholder.com/40';
+                loadContactsAndGroups();
+            } else {
+                alert('Usuario o contraseña incorrectos');
             }
         }
 
         async function register() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            try {
-                const response = await fetch(`${BASE_URL}/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                if (response.ok) {
-                    alert('Usuario registrado con éxito');
-                    toggleAuth();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Error al registrar usuario');
-                }
-            } catch (err) {
-                console.error('Error en fetch /register:', err);
-                alert('Error de conexión con el servidor');
+            const response = await fetch(`${BASE_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (response.ok) {
+                alert('Usuario registrado con éxito');
+                toggleAuth();
+            } else {
+                alert('Error al registrar usuario');
             }
         }
 
@@ -390,155 +370,62 @@
                 loadContactsAndGroups();
                 document.getElementById('new-contact').value = '';
             } else {
-                const error = await response.json();
-                alert(error.error || 'Error al agregar contacto');
-            }
-        }
-
-        async function loadAllMessages() {
-            try {
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-                const contacts = await contactResponse.json();
-                for (const contact of contacts) {
-                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
-                    allMessages[contact] = await msgResponse.json();
-                    unreadMessages[contact] = unreadMessages[contact] || [];
-                }
-                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                const groups = await groupResponse.json();
-                for (const group of groups) {
-                    const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
-                    allMessages[group.group_id] = await msgResponse.json();
-                    unreadMessages[group.group_id] = unreadMessages[group.group_id] || [];
-                }
-                console.log('Todos los mensajes cargados en memoria');
-            } catch (err) {
-                console.error('Error al cargar mensajes:', err);
+                alert('Error al agregar contacto');
             }
         }
 
         async function loadContactsAndGroups() {
-            if (isLoadingContacts) return;
-            isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
             contactList.innerHTML = '';
 
-            try {
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-                const contacts = await contactResponse.json();
-                for (const contact of contacts) {
-                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
-                    const picData = await picResponse.json();
-                    const messages = allMessages[contact] || [];
-                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[contact]?.includes(msg.id)).length;
-                    const li = document.createElement('li');
-                    li.className = 'contact';
-                    li.innerHTML = `
-                        <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                    `;
-                    li.onclick = () => selectContact(contact, false);
-                    contactList.appendChild(li);
-                }
+            // Cargar contactos
+            const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+            const contacts = await contactResponse.json();
+            for (const contact of contacts) {
+                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                const picData = await picResponse.json();
+                const li = document.createElement('li');
+                li.className = 'contact';
+                li.innerHTML = `
+                    <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${contact}
+                `;
+                li.onclick = () => selectContact(contact, false);
+                contactList.appendChild(li);
+            }
 
-                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                const groups = await groupResponse.json();
-                for (const group of groups) {
-                    const messages = allMessages[group.group_id] || [];
-                    const unreadCount = messages.filter(msg => msg.sender !== currentUser && !unreadMessages[group.group_id]?.includes(msg.id)).length;
-                    const li = document.createElement('li');
-                    li.className = 'group';
-                    li.innerHTML = `
-                        <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                        ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
-                    `;
-                    li.onclick = () => selectContact(group.group_id, true);
-                    contactList.appendChild(li);
-                }
-            } catch (err) {
-                console.error('Error al cargar contactos y grupos:', err);
-            } finally {
-                isLoadingContacts = false;
+            // Cargar grupos
+            const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+            const groups = await groupResponse.json();
+            for (const group of groups) {
+                const li = document.createElement('li');
+                li.className = 'group';
+                li.innerHTML = `
+                    <img src="${group.group_pic || 'https://via.placeholder.com/40'}" class="profile-pic">${group.group_name} (Grupo)
+                    ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
+                `;
+                li.onclick = () => selectContact(group.group_id, true);
+                contactList.appendChild(li);
             }
         }
 
-        function setupWebSocket() {
-            ws = new WebSocket(`wss://mi-proyecto-production-1b77.up.railway.app/ws?username=${currentUser}`);
-            ws.onopen = () => console.log('WebSocket conectado');
-            ws.onmessage = async (event) => {
-                const message = JSON.parse(event.data);
-                const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
-                allMessages[chatId] = allMessages[chatId] || [];
-                allMessages[chatId].push(message);
-                unreadMessages[chatId] = unreadMessages[chatId] || [];
-
-                if (chatId === currentContact) {
-                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
-                    const picData = await picResponse.json();
-                    const messagesDiv = document.getElementById('messages');
-                    const div = document.createElement('div');
-                    div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
-                    div.innerHTML = `
-                        <div class="message-header">
-                            <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                            <span class="message-sender">${message.sender}</span>
-                        </div>
-                        <div class="message-content">${message.text}</div>
-                        <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
-                    `;
-                    messagesDiv.appendChild(div);
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                    unreadMessages[chatId].push(message.id);
-                } else if (message.sender !== currentUser) {
-                    loadContactsAndGroups();
-                }
-            };
-            ws.onclose = () => console.log('WebSocket desconectado');
-            ws.onerror = (err) => console.error('Error en WebSocket:', err);
-        }
-
         async function sendMessage() {
-            const messageInput = document.getElementById('message-input');
-            const text = messageInput.value.trim();
+            const text = document.getElementById('message-input').value;
             if (text && currentContact) {
-                const message = {
-                    id: Date.now(),
-                    sender: currentUser,
-                    text,
-                    timestamp: new Date().toISOString()
-                };
                 if (isGroupChat) {
-                    message.group_id = currentContact;
                     await fetch(`${BASE_URL}/group_messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, sender: currentUser, text })
                     });
                 } else {
-                    message.receiver = currentContact;
                     await fetch(`${BASE_URL}/messages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
                 }
-                ws.send(JSON.stringify(message));
-                allMessages[currentContact].push(message);
-                const messagesDiv = document.getElementById('messages');
-                const div = document.createElement('div');
-                div.className = 'message me';
-                div.innerHTML = `
-                    <div class="message-header">
-                        <img src="${document.getElementById('my-profile-pic').src}" class="profile-pic">
-                        <span class="message-sender">${currentUser}</span>
-                    </div>
-                    <div class="message-content">${text}</div>
-                    <div class="message-timestamp">${new Date(message.timestamp).toLocaleString()}</div>
-                `;
-                messagesDiv.appendChild(div);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                messageInput.value = '';
+                document.getElementById('message-input').value = '';
+                loadMessages();
             }
         }
 
@@ -552,9 +439,16 @@
         async function loadMessages() {
             const messagesDiv = document.getElementById('messages');
             messagesDiv.innerHTML = '';
-            if (currentContact && allMessages[currentContact]) {
-                unreadMessages[currentContact] = unreadMessages[currentContact] || [];
-                for (const msg of allMessages[currentContact]) {
+            if (currentContact) {
+                let messages;
+                if (isGroupChat) {
+                    const response = await fetch(`${BASE_URL}/group_messages/${currentContact}`);
+                    messages = await response.json();
+                } else {
+                    const response = await fetch(`${BASE_URL}/messages/${currentUser}/${currentContact}`);
+                    messages = await response.json();
+                }
+                for (const msg of messages) {
                     const picResponse = await fetch(`${BASE_URL}/profile-pic/${msg.sender}`);
                     const picData = await picResponse.json();
                     const div = document.createElement('div');
@@ -568,28 +462,19 @@
                         <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                     `;
                     messagesDiv.appendChild(div);
-                    if (!unreadMessages[currentContact].includes(msg.id)) {
-                        unreadMessages[currentContact].push(msg.id);
-                    }
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                loadContactsAndGroups();
             }
-        }
-
-        async function getGroupName(groupId) {
-            const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
-            const groups = await response.json();
-            const group = groups.find(g => g.group_id === groupId);
-            return group ? group.group_name : groupId;
         }
 
         async function selectContact(contact, isGroup) {
             currentContact = contact;
             isGroupChat = isGroup;
             if (isGroup) {
-                const groupName = await getGroupName(contact);
-                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                const groups = await response.json();
+                const group = groups.find(g => g.group_id === contact);
+                document.getElementById('current-contact').textContent = group ? `${group.group_name} (Grupo)` : contact;
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
@@ -613,17 +498,11 @@
                 reader.onload = async function(e) {
                     const profilePic = e.target.result;
                     document.getElementById('my-profile-pic').src = profilePic;
-                    const response = await fetch(`${BASE_URL}/profile-pic`, {
+                    await fetch(`${BASE_URL}/profile-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username: currentUser, profilePic })
                     });
-                    if (response.ok) {
-                        alert('Foto de perfil actualizada con éxito');
-                    } else {
-                        const error = await response.json();
-                        alert(error.error || 'Error al actualizar la foto');
-                    }
                 };
                 reader.readAsDataURL(file);
             }
@@ -661,30 +540,22 @@
             const checkboxes = document.querySelectorAll('#group-members-list input[type="checkbox"]:checked');
             const members = Array.from(checkboxes).map(checkbox => checkbox.value);
 
-            if (!groupName || !file || members.length === 0) {
-                alert('Debes ingresar un nombre, seleccionar una foto y al menos un miembro');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const groupPic = e.target.result;
-                const response = await fetch(`${BASE_URL}/groups`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group_name: groupName, members, creator: currentUser, group_pic: groupPic })
-                });
-                if (response.ok) {
-                    alert('Grupo creado con éxito');
+            if (groupName && file && members.length > 0) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const groupPic = e.target.result;
+                    await fetch(`${BASE_URL}/groups`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_name: groupName, members, creator: currentUser, group_pic: groupPic })
+                    });
                     hideGroupCreation();
-                    await loadAllMessages();
                     loadContactsAndGroups();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Error al crear grupo');
-                }
-            };
-            reader.readAsDataURL(file);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Debes ingresar un nombre, seleccionar una foto y al menos un miembro');
+            }
         }
 
         async function showGroupSettings(groupId) {
@@ -720,83 +591,51 @@
                 const reader = new FileReader();
                 reader.onload = async function(e) {
                     const groupPic = e.target.result;
-                    const response = await fetch(`${BASE_URL}/group-pic`, {
+                    await fetch(`${BASE_URL}/group-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_id: currentContact, group_pic: groupPic, username: currentUser })
                     });
-                    if (response.ok) {
-                        alert('Foto del grupo actualizada con éxito');
-                        loadContactsAndGroups();
-                        hideGroupSettings();
-                    } else {
-                        const error = await response.json();
-                        alert(error.error || 'Error al actualizar la foto');
-                    }
+                    loadContactsAndGroups();
+                    hideGroupSettings();
                 };
                 reader.readAsDataURL(file);
-            } else {
-                alert('Por favor, selecciona una foto');
             }
         }
 
         async function updateGroupName() {
             const groupName = document.getElementById('group-name-edit').value;
             if (groupName) {
-                const response = await fetch(`${BASE_URL}/group-name`, {
+                await fetch(`${BASE_URL}/group-name`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_id: currentContact, group_name: groupName, username: currentUser })
                 });
-                if (response.ok) {
-                    alert('Nombre del grupo actualizado con éxito');
-                    document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
-                    loadContactsAndGroups();
-                    hideGroupSettings();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Error al actualizar el nombre');
-                }
-            } else {
-                alert('Debes ingresar un nuevo nombre');
+                document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                loadContactsAndGroups();
+                hideGroupSettings();
             }
         }
 
         async function addGroupMember() {
             const newMember = document.getElementById('new-group-member').value;
             if (newMember) {
-                const response = await fetch(`${BASE_URL}/group-add-member`, {
+                await fetch(`${BASE_URL}/group-add-member`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_id: currentContact, username: currentUser, new_member: newMember })
                 });
-                if (response.ok) {
-                    alert('Miembro añadido con éxito');
-                    showGroupSettings(currentContact);
-                    loadContactsAndGroups();
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Error al añadir miembro');
-                }
-            } else {
-                alert('Debes ingresar un nombre de usuario');
+                showGroupSettings(currentContact);
             }
         }
 
         async function removeGroupMember(member) {
-            const response = await fetch(`${BASE_URL}/group-remove-member`, {
+            await fetch(`${BASE_URL}/group-remove-member`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ group_id: currentContact, username: currentUser, member_to_remove: member })
             });
-            if (response.ok) {
-                alert('Miembro expulsado con éxito');
-                showGroupSettings(currentContact);
-                loadContactsAndGroups();
-            } else {
-                const error = await response.json();
-                alert(error.error || 'Error al expulsar miembro');
-            }
+            showGroupSettings(currentContact);
         }
     </script>
 </body>
