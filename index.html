@@ -87,24 +87,28 @@
             background: #e9ecef;
             color: #333;
         }
-        .message-content {
+        .message-header {
             display: flex;
             align-items: center;
+            margin-bottom: 5px;
         }
         .message-sender {
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-left: 10px; /* Espacio a la derecha de la foto */
+        }
+        .message-content {
+            margin-left: 50px; /* Alinea el texto con el espacio de la foto */
         }
         .message-timestamp {
             font-size: 0.8em;
             margin-top: 8px;
             opacity: 0.7;
+            margin-left: 50px; /* Alinea el timestamp con el mensaje */
         }
         .profile-pic {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            margin-right: 10px;
             object-fit: cover;
         }
         input, button {
@@ -283,11 +287,11 @@
                     const div = document.createElement('div');
                     div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
                     div.innerHTML = `
-                        <div class="message-sender">${msg.sender}</div>
-                        <div class="message-content">
+                        <div class="message-header">
                             <img src="${picData.profile_pic || 'https://via.placeholder.com/40'}" class="profile-pic">
-                            <span>${msg.text}</span>
+                            <span class="message-sender">${msg.sender}</span>
                         </div>
+                        <div class="message-content">${msg.text}</div>
                         <div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div>
                     `;
                     messagesDiv.appendChild(div);
