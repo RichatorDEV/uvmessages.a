@@ -302,14 +302,14 @@
 
     <script>
         let currentUser = null;
-        let currentContact = null; // Puede ser un contacto o un group_id
-        let isGroupChat = false;   // Indica si el chat actual es un grupo
+        let currentContact = null;
+        let isGroupChat = false;
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
         let isLoadingContacts = false;
-        let unreadMessages = {}; // IDs de mensajes leídos
-        let allMessages = {};    // Todos los mensajes en memoria
-        let ws = null;           // WebSocket
+        let unreadMessages = {};
+        let allMessages = {};
+        let ws = null;
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -491,7 +491,7 @@
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
                     unreadMessages[chatId].push(message.id);
                 } else if (message.sender !== currentUser) {
-                    loadContactsAndGroups(); // Actualizar notificaciones si no es el chat actual
+                    loadContactsAndGroups();
                 }
             };
             ws.onclose = () => console.log('WebSocket desconectado');
@@ -503,7 +503,7 @@
             const text = messageInput.value.trim();
             if (text && currentContact) {
                 const message = {
-                    id: Date.now(), // ID temporal
+                    id: Date.now(),
                     sender: currentUser,
                     text,
                     timestamp: new Date().toISOString()
@@ -523,7 +523,7 @@
                         body: JSON.stringify({ sender: currentUser, receiver: currentContact, text })
                     });
                 }
-                ws.send(JSON.stringify(message)); // Enviar a través de WebSocket para que se refleje en tiempo real
+                ws.send(JSON.stringify(message));
                 allMessages[currentContact].push(message);
                 const messagesDiv = document.getElementById('messages');
                 const div = document.createElement('div');
