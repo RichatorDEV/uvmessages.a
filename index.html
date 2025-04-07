@@ -331,7 +331,7 @@
         let allContactsLoaded = false;
         let loadedGroups = [];
         let allContacts = new Set();
-        let isSending = false; // Bloqueo para evitar mensajes duplicados
+        let isSending = false;
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -418,12 +418,10 @@
 
         async function preloadData() {
             try {
-                // Cargar grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 loadedGroups = await groupResponse.json();
                 console.log('Grupos precargados:', loadedGroups);
 
-                // Cargar todos los contactos
                 allContacts.clear();
                 let page = 1;
                 let moreContacts = true;
@@ -439,7 +437,6 @@
                     }
                 }
 
-                // Cargar fotos de perfil
                 const allUsers = new Set([currentUser, ...allContacts]);
                 for (const group of loadedGroups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
@@ -454,7 +451,6 @@
                     }
                 }
 
-                // Cargar mensajes
                 for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     allMessages[contact] = await msgResponse.json();
@@ -525,7 +521,7 @@
                             unreadMessages[chatId].push(message.id);
                             console.log(`Notificación añadida para ${chatId}. Total: ${unreadMessages[chatId].length}`);
                         }
-                        loadContactsAndGroups(); // Refrescar la lista para mostrar notificaciones
+                        loadContactsAndGroups();
                     }
                 }
             };
@@ -583,10 +579,11 @@
             console.log('Cargando contactos y grupos, página:', contactPage);
 
             try {
-                // Siempre limpiar y recargar todo para asegurar consistencia
+                // Limpiar la lista
                 contactList.innerHTML = '';
 
                 // Mostrar grupos
+                console.log('Grupos a renderizar:', loadedGroups);
                 for (const group of loadedGroups) {
                     const unreadCount = (unreadMessages[group.group_id] || []).length;
                     const li = document.createElement('li');
@@ -600,16 +597,20 @@
                     contactList.appendChild(li);
                 }
 
-                // Mostrar contactos con paginación
+                // Cargar y mostrar contactos
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
+                if (!contactResponse.ok) {
+                    throw new Error(`Error en la solicitud: ${contactResponse.status}`);
+                }
                 const contacts = await contactResponse.json();
-                console.log(`Contactos recibidos (página ${contactPage}):`, contacts);
+                console.log(`Contactos recibidos del servidor (página ${contactPage}):`, contacts);
 
-                if (contacts.length < contactsPerPage) {
-                    allContactsLoaded = true;
+                if (contacts.length === 0 && contactPage === 1) {
+                    console.log('No hay contactos para mostrar en esta página');
                 }
 
                 for (const contact of contacts) {
+                    allContacts.add(contact); // Asegurar que todos los contactos estén registrados
                     const unreadCount = (unreadMessages[contact] || []).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
@@ -621,10 +622,17 @@
                     contactList.appendChild(li);
                 }
 
-                contactPage++;
-                console.log('Contactos y grupos cargados. Total contactos:', allContacts.size);
+                if (contacts.length < contactsPerPage) {
+                    allContactsLoaded = true;
+                    console.log('Todos los contactos cargados');
+                } else {
+                    contactPage++;
+                }
+
+                console.log('Contactos y grupos cargados. Total contactos en allContacts:', allContacts.size);
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err);
+                contactList.innerHTML = '<li>Error al cargar contactos</li>'; // Mostrar error en UI
             } finally {
                 isLoadingContacts = false;
             }
