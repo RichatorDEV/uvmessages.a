@@ -129,16 +129,20 @@
             object-fit: cover;
             margin-right: 10px;
         }
-        input, button {
+        input {
             padding: 10px;
             border: none;
             border-radius: 8px;
             margin: 5px 0;
-        }
-        input {
+            width: 100%;
             background: #f5f5f5;
         }
         button {
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            margin: 5px 0;
+            width: 100%;
             background: #0084ff;
             color: white;
             cursor: pointer;
@@ -150,12 +154,10 @@
         #message-input-container {
             display: flex;
             align-items: center;
-            width: 100%;
+            gap: 5px;
         }
         #message-input {
             flex-grow: 1;
-            width: auto;
-            margin-right: 5px;
         }
         #emoji-button {
             width: 40px;
@@ -164,7 +166,7 @@
             border-radius: 50%;
             background: #f5f5f5;
             color: #333;
-            margin-right: 5px;
+            padding: 0;
         }
         #emoji-button:hover {
             background: #e0e0e0;
@@ -398,7 +400,6 @@
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
-        // Lista de emojis por categoría
         const emojiCategories = {
             "Caras y Emociones": [
                 "😊", "😂", "😍", "😢", "😡", "😱", "😴", "🤓", "😜", "😇",
