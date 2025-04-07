@@ -61,8 +61,8 @@
         }
         #contact-list {
             list-style: none;
-            max-height: 400px; /* Altura fija para permitir scroll */
-            overflow-y: auto; /* Habilitar scroll vertical */
+            max-height: 400px;
+            overflow-y: auto;
         }
         .contact, .group {
             display: flex;
@@ -316,7 +316,7 @@
 
     <script>
         let currentUser = null;
-        let currentContact = null; // Puede ser un contacto o un group_id
+        let currentContact = null;
         let isGroupChat = false;
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
@@ -326,9 +326,10 @@
         let profilePics = {};
         const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/q0qka5.png';
         let ws = null;
-        let contactPage = 1; // Página actual de contactos
-        const contactsPerPage = 10; // Contactos por página
-        let allContactsLoaded = false; // Indica si se cargaron todos los contactos
+        let contactPage = 1;
+        const contactsPerPage = 10;
+        let allContactsLoaded = false;
+        let loadedGroups = []; // Guardar grupos cargados para evitar duplicados
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -365,10 +366,11 @@
                     const user = await response.json();
                     console.log('Usuario logueado:', user);
                     currentUser = user.username;
+                    profilePics[currentUser] = user.profile_pic || DEFAULT_PROFILE_PIC;
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
-                    document.getElementById('my-profile-pic').src = user.profile_pic || DEFAULT_PROFILE_PIC;
+                    document.getElementById('my-profile-pic').src = profilePics[currentUser];
                     await preloadData();
                     setupWebSocket();
                     const contactList = document.getElementById('contact-list');
@@ -416,6 +418,7 @@
             try {
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
+                loadedGroups = groups;
 
                 const allUsers = new Set([currentUser]);
                 for (const group of groups) {
@@ -423,22 +426,35 @@
                     const members = await memberResponse.json();
                     members.forEach(member => allUsers.add(member));
                 }
+
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=1&limit=${contactsPerPage}`);
+                const contacts = await contactResponse.json();
+                contacts.forEach(contact => allUsers.add(contact));
+
                 for (const user of allUsers) {
-                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${user}`);
-                    const picData = await picResponse.json();
-                    profilePics[user] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                    if (!profilePics[user]) {
+                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${user}`);
+                        const picData = await picResponse.json();
+                        profilePics[user] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                    }
                 }
 
-                contactPage = 1;
-                allContactsLoaded = false;
-                document.getElementById('contact-list').innerHTML = '';
-                await loadContactsAndGroups();
+                for (const contact of contacts) {
+                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
+                    const messages = await msgResponse.json();
+                    allMessages[contact] = messages;
+                }
 
                 for (const group of groups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     const messages = await msgResponse.json();
                     allMessages[group.group_id] = messages;
                 }
+
+                contactPage = 1;
+                allContactsLoaded = false;
+                document.getElementById('contact-list').innerHTML = '';
+                await loadContactsAndGroups();
             } catch (err) {
                 console.error('Error al precargar datos:', err);
             }
@@ -453,6 +469,7 @@
 
                 if (message.type === 'group_deleted') {
                     delete allMessages[message.group_id];
+                    loadedGroups = loadedGroups.filter(g => g.group_id !== message.group_id);
                     if (currentContact === message.group_id) {
                         currentContact = null;
                         document.getElementById('current-contact').textContent = '';
@@ -483,7 +500,7 @@
                         div.className = `message ${message.sender === currentUser ? 'me' : 'other'}`;
                         div.innerHTML = `
                             <div class="message-header">
-                                <img src="${profilePics[message.sender]}" class="profile-pic">
+                                <img src="${profilePics[message.sender] || DEFAULT_PROFILE_PIC}" class="profile-pic">
                                 <span class="message-sender">${message.sender}</span>
                             </div>
                             <div class="message-content">${message.text}</div>
@@ -515,9 +532,11 @@
                 const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                 const messages = await msgResponse.json();
                 allMessages[contact] = messages;
-                const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
-                const picData = await picResponse.json();
-                profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                if (!profilePics[contact]) {
+                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
+                    const picData = await picResponse.json();
+                    profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                }
                 contactPage = 1;
                 allContactsLoaded = false;
                 document.getElementById('contact-list').innerHTML = '';
@@ -533,8 +552,8 @@
         }
 
         async function loadContactsAndGroups() {
-            if (isLoadingContacts || allContactsLoaded) {
-                console.log('Carga de contactos ya en progreso o completa');
+            if (isLoadingContacts) {
+                console.log('Carga de contactos ya en progreso');
                 return;
             }
             isLoadingContacts = true;
@@ -544,28 +563,14 @@
             try {
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
                 const contacts = await contactResponse.json();
-                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                const groups = await groupResponse.json();
 
-                if (contacts.length < contactsPerPage) {
-                    allContactsLoaded = true;
-                }
-
-                for (const contact of contacts) {
-                    const unreadCount = (unreadMessages[contact] || []).length;
-                    const li = document.createElement('li');
-                    li.className = 'contact';
-                    li.innerHTML = `
-                        <img src="${profilePics[contact]}" class="profile-pic">${contact}
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                    `;
-                    li.onclick = () => selectContact(contact, false);
-                    contactList.appendChild(li);
-                }
-
-                // Solo cargar grupos en la primera página
                 if (contactPage === 1) {
-                    for (const group of groups) {
+                    contactList.innerHTML = ''; // Limpiar solo en la primera página
+                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                    loadedGroups = await groupResponse.json();
+
+                    // Cargar grupos primero
+                    for (const group of loadedGroups) {
                         const unreadCount = (unreadMessages[group.group_id] || []).length;
                         const li = document.createElement('li');
                         li.className = 'group';
@@ -579,6 +584,22 @@
                     }
                 }
 
+                if (contacts.length < contactsPerPage) {
+                    allContactsLoaded = true;
+                }
+
+                for (const contact of contacts) {
+                    const unreadCount = (unreadMessages[contact] || []).length;
+                    const li = document.createElement('li');
+                    li.className = 'contact';
+                    li.innerHTML = `
+                        <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
+                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                    `;
+                    li.onclick = () => selectContact(contact, false);
+                    contactList.appendChild(li);
+                }
+
                 contactPage++;
                 console.log('Contactos y grupos cargados exitosamente');
             } catch (err) {
@@ -588,10 +609,9 @@
             }
         }
 
-        // Scroll infinito para contactos
         document.getElementById('contact-list').addEventListener('scroll', function () {
             const contactList = this;
-            if (contactList.scrollTop + contactList.clientHeight >= contactList.scrollHeight - 50) {
+            if (contactList.scrollTop + contactList.clientHeight >= contactList.scrollHeight - 50 && !allContactsLoaded) {
                 loadContactsAndGroups();
             }
         });
@@ -641,7 +661,7 @@
                     div.className = `message ${msg.sender === currentUser ? 'me' : 'other'}`;
                     div.innerHTML = `
                         <div class="message-header">
-                            <img src="${profilePics[msg.sender]}" class="profile-pic">
+                            <img src="${profilePics[msg.sender] || DEFAULT_PROFILE_PIC}" class="profile-pic">
                             <span class="message-sender">${msg.sender}</span>
                         </div>
                         <div class="message-content">${msg.text}</div>
@@ -656,9 +676,7 @@
         }
 
         async function getGroupName(groupId) {
-            const response = await fetch(`${BASE_URL}/groups/${currentUser}`);
-            const groups = await response.json();
-            const group = groups.find(g => g.group_id === groupId);
+            const group = loadedGroups.find(g => g.group_id === groupId);
             return group ? group.group_name : groupId;
         }
 
@@ -725,7 +743,7 @@
                 const div = document.createElement('div');
                 div.className = 'group-member-option';
                 div.innerHTML = `
-                    <img src="${profilePics[contact]}" class="profile-pic">
+                    <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">
                     <span>${contact}</span>
                     <input type="checkbox" value="${contact}">
                 `;
@@ -760,8 +778,8 @@
                 if (response.ok) {
                     alert('Grupo creado con éxito');
                     const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                    const groups = await groupResponse.json();
-                    const newGroup = groups.find(g => g.group_name === groupName);
+                    loadedGroups = await groupResponse.json();
+                    const newGroup = loadedGroups.find(g => g.group_name === groupName);
                     allMessages[newGroup.group_id] = [];
                     await loadContactsAndGroups();
                     hideGroupCreation();
@@ -785,7 +803,7 @@
                 const div = document.createElement('div');
                 div.className = 'group-member-setting';
                 div.innerHTML = `
-                    <img src="${profilePics[member]}" class="profile-pic">
+                    <img src="${profilePics[member] || DEFAULT_PROFILE_PIC}" class="profile-pic">
                     <span>${member}</span>
                     ${member !== currentUser ? '<button class="group-settings-button" onclick="removeGroupMember(\'' + member + '\')">Expulsar</button>' : ''}
                 `;
@@ -812,6 +830,8 @@
                     });
                     if (response.ok) {
                         alert('Foto del grupo actualizada con éxito');
+                        const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                        loadedGroups = await groupResponse.json();
                         loadContactsAndGroups();
                         hideGroupSettings();
                     } else {
@@ -836,6 +856,8 @@
                 if (response.ok) {
                     alert('Nombre del grupo actualizado con éxito');
                     document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
+                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                    loadedGroups = await groupResponse.json();
                     loadContactsAndGroups();
                     hideGroupSettings();
                 } else {
@@ -857,9 +879,11 @@
                 });
                 if (response.ok) {
                     alert('Miembro añadido con éxito');
-                    const picResponse = await fetch(`${BASE_URL}/profile-pic/${newMember}`);
-                    const picData = await picResponse.json();
-                    profilePics[newMember] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                    if (!profilePics[newMember]) {
+                        const picResponse = await fetch(`${BASE_URL}/profile-pic/${newMember}`);
+                        const picData = await picResponse.json();
+                        profilePics[newMember] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                    }
                     showGroupSettings(currentContact);
                     loadContactsAndGroups();
                 } else {
