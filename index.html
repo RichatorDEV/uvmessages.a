@@ -61,6 +61,8 @@
         }
         #contact-list {
             list-style: none;
+            max-height: 400px; /* Altura fija para permitir scroll */
+            overflow-y: auto; /* Habilitar scroll vertical */
         }
         .contact, .group {
             display: flex;
@@ -315,15 +317,18 @@
     <script>
         let currentUser = null;
         let currentContact = null; // Puede ser un contacto o un group_id
-        let isGroupChat = false;   // Indica si el chat actual es un grupo
+        let isGroupChat = false;
         const BASE_URL = 'https://mi-proyecto-production-1b77.up.railway.app';
         let isLoginMode = true;
-        let isLoadingContacts = false; // Bandera para evitar cargas simultáneas
-        let unreadMessages = {}; // Almacena IDs de mensajes no leídos por contacto/grupo
-        let allMessages = {}; // Almacena todos los mensajes precargados por chatId
-        let profilePics = {}; // Almacena fotos de perfil precargadas
-        const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/q0qka5.png'; // Foto por defecto
-        let ws = null; // WebSocket para actualizaciones en tiempo real
+        let isLoadingContacts = false;
+        let unreadMessages = {};
+        let allMessages = {};
+        let profilePics = {};
+        const DEFAULT_PROFILE_PIC = 'https://files.catbox.moe/q0qka5.png';
+        let ws = null;
+        let contactPage = 1; // Página actual de contactos
+        const contactsPerPage = 10; // Contactos por página
+        let allContactsLoaded = false; // Indica si se cargaron todos los contactos
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -409,12 +414,10 @@
 
         async function preloadData() {
             try {
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-                const contacts = await contactResponse.json();
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 const groups = await groupResponse.json();
 
-                const allUsers = new Set([...contacts, currentUser]);
+                const allUsers = new Set([currentUser]);
                 for (const group of groups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
                     const members = await memberResponse.json();
@@ -426,19 +429,16 @@
                     profilePics[user] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                 }
 
-                for (const contact of contacts) {
-                    const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
-                    const messages = await msgResponse.json();
-                    allMessages[contact] = messages;
-                }
+                contactPage = 1;
+                allContactsLoaded = false;
+                document.getElementById('contact-list').innerHTML = '';
+                await loadContactsAndGroups();
 
                 for (const group of groups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     const messages = await msgResponse.json();
                     allMessages[group.group_id] = messages;
                 }
-
-                await loadContactsAndGroups(contacts, groups);
             } catch (err) {
                 console.error('Error al precargar datos:', err);
             }
@@ -464,18 +464,16 @@
                     allMessages[chatId] = allMessages[chatId] || [];
                     allMessages[chatId].push(message);
 
-                    // Si es un mensaje individual y el remitente no está en contactos, actualizar
                     if (!message.group_id && message.sender !== currentUser) {
-                        const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                        const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=1&limit=${contactsPerPage}`);
                         const contacts = await contactResponse.json();
                         if (!contacts.includes(message.sender)) {
-                            // El backend ya lo añadió, pero necesitamos reflejarlo localmente
                             if (!profilePics[message.sender]) {
                                 const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
                                 const picData = await picResponse.json();
                                 profilePics[message.sender] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                             }
-                            loadContactsAndGroups(); // Recargar contactos
+                            loadContactsAndGroups();
                         }
                     }
 
@@ -520,6 +518,9 @@
                 const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
                 const picData = await picResponse.json();
                 profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                contactPage = 1;
+                allContactsLoaded = false;
+                document.getElementById('contact-list').innerHTML = '';
                 await loadContactsAndGroups();
                 document.getElementById('new-contact').value = '';
                 if (!currentContact) {
@@ -531,23 +532,23 @@
             }
         }
 
-        async function loadContactsAndGroups(contacts = null, groups = null) {
-            if (isLoadingContacts) {
-                console.log('Carga de contactos ya en progreso, esperando...');
+        async function loadContactsAndGroups() {
+            if (isLoadingContacts || allContactsLoaded) {
+                console.log('Carga de contactos ya en progreso o completa');
                 return;
             }
             isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
-            contactList.innerHTML = '';
+            console.log('Cargando contactos y grupos, página:', contactPage);
 
             try {
-                if (!contacts) {
-                    const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
-                    contacts = await contactResponse.json();
-                }
-                if (!groups) {
-                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                    groups = await groupResponse.json();
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
+                const contacts = await contactResponse.json();
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                const groups = await groupResponse.json();
+
+                if (contacts.length < contactsPerPage) {
+                    allContactsLoaded = true;
                 }
 
                 for (const contact of contacts) {
@@ -562,18 +563,23 @@
                     contactList.appendChild(li);
                 }
 
-                for (const group of groups) {
-                    const unreadCount = (unreadMessages[group.group_id] || []).length;
-                    const li = document.createElement('li');
-                    li.className = 'group';
-                    li.innerHTML = `
-                        <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                        ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
-                    `;
-                    li.onclick = () => selectContact(group.group_id, true);
-                    contactList.appendChild(li);
+                // Solo cargar grupos en la primera página
+                if (contactPage === 1) {
+                    for (const group of groups) {
+                        const unreadCount = (unreadMessages[group.group_id] || []).length;
+                        const li = document.createElement('li');
+                        li.className = 'group';
+                        li.innerHTML = `
+                            <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
+                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                            ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
+                        `;
+                        li.onclick = () => selectContact(group.group_id, true);
+                        contactList.appendChild(li);
+                    }
                 }
+
+                contactPage++;
                 console.log('Contactos y grupos cargados exitosamente');
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err);
@@ -581,6 +587,14 @@
                 isLoadingContacts = false;
             }
         }
+
+        // Scroll infinito para contactos
+        document.getElementById('contact-list').addEventListener('scroll', function () {
+            const contactList = this;
+            if (contactList.scrollTop + contactList.clientHeight >= contactList.scrollHeight - 50) {
+                loadContactsAndGroups();
+            }
+        });
 
         async function sendMessage() {
             const messageInput = document.getElementById('message-input');
@@ -657,6 +671,11 @@
             } else {
                 document.getElementById('current-contact').textContent = contact;
             }
+            if (!allMessages[contact]) {
+                const endpoint = isGroup ? `${BASE_URL}/group_messages/${contact}` : `${BASE_URL}/messages/${currentUser}/${contact}`;
+                const msgResponse = await fetch(endpoint);
+                allMessages[contact] = await msgResponse.json();
+            }
             renderMessages();
         }
 
@@ -700,7 +719,7 @@
             document.getElementById('group-creation').style.display = 'block';
             const memberList = document.getElementById('group-members-list');
             memberList.innerHTML = '';
-            const response = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+            const response = await fetch(`${BASE_URL}/contacts/${currentUser}?page=1&limit=${contactsPerPage}`);
             const contacts = await response.json();
             for (const contact of contacts) {
                 const div = document.createElement('div');
