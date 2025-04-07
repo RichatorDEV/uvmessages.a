@@ -329,7 +329,8 @@
         let contactPage = 1;
         const contactsPerPage = 10;
         let allContactsLoaded = false;
-        let loadedGroups = []; // Guardar grupos cargados para evitar duplicados
+        let loadedGroups = [];
+        let allContacts = new Set(); // Almacenar todos los contactos para evitar duplicados
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -417,19 +418,33 @@
         async function preloadData() {
             try {
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                const groups = await groupResponse.json();
-                loadedGroups = groups;
+                loadedGroups = await groupResponse.json();
+                console.log('Grupos precargados:', loadedGroups);
 
                 const allUsers = new Set([currentUser]);
-                for (const group of groups) {
+                for (const group of loadedGroups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
                     const members = await memberResponse.json();
                     members.forEach(member => allUsers.add(member));
                 }
 
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=1&limit=${contactsPerPage}`);
-                const contacts = await contactResponse.json();
-                contacts.forEach(contact => allUsers.add(contact));
+                allContacts.clear();
+                let page = 1;
+                let moreContacts = true;
+                while (moreContacts) {
+                    const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${page}&limit=${contactsPerPage}`);
+                    const contacts = await contactResponse.json();
+                    console.log(`Contactos precargados (página ${page}):`, contacts);
+                    contacts.forEach(contact => {
+                        allContacts.add(contact);
+                        allUsers.add(contact);
+                    });
+                    if (contacts.length < contactsPerPage) {
+                        moreContacts = false;
+                    } else {
+                        page++;
+                    }
+                }
 
                 for (const user of allUsers) {
                     if (!profilePics[user]) {
@@ -439,13 +454,13 @@
                     }
                 }
 
-                for (const contact of contacts) {
+                for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     const messages = await msgResponse.json();
                     allMessages[contact] = messages;
                 }
 
-                for (const group of groups) {
+                for (const group of loadedGroups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     const messages = await msgResponse.json();
                     allMessages[group.group_id] = messages;
@@ -481,17 +496,17 @@
                     allMessages[chatId] = allMessages[chatId] || [];
                     allMessages[chatId].push(message);
 
-                    if (!message.group_id && message.sender !== currentUser) {
-                        const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=1&limit=${contactsPerPage}`);
-                        const contacts = await contactResponse.json();
-                        if (!contacts.includes(message.sender)) {
-                            if (!profilePics[message.sender]) {
-                                const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
-                                const picData = await picResponse.json();
-                                profilePics[message.sender] = picData.profile_pic || DEFAULT_PROFILE_PIC;
-                            }
-                            loadContactsAndGroups();
+                    if (!message.group_id && message.sender !== currentUser && !allContacts.has(message.sender)) {
+                        allContacts.add(message.sender);
+                        if (!profilePics[message.sender]) {
+                            const picResponse = await fetch(`${BASE_URL}/profile-pic/${message.sender}`);
+                            const picData = await picResponse.json();
+                            profilePics[message.sender] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                         }
+                        contactPage = 1;
+                        allContactsLoaded = false;
+                        document.getElementById('contact-list').innerHTML = '';
+                        loadContactsAndGroups();
                     }
 
                     if (chatId === currentContact) {
@@ -512,8 +527,9 @@
                         unreadMessages[chatId] = unreadMessages[chatId] || [];
                         if (!unreadMessages[chatId].includes(message.id)) {
                             unreadMessages[chatId].push(message.id);
+                            console.log(`Notificación añadida para ${chatId}. Total: ${unreadMessages[chatId].length}`);
+                            loadContactsAndGroups(); // Actualizar la lista para mostrar la notificación
                         }
-                        loadContactsAndGroups();
                     }
                 }
             };
@@ -529,6 +545,7 @@
                 body: JSON.stringify({ username: currentUser, contact })
             });
             if (response.ok) {
+                allContacts.add(contact);
                 const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                 const messages = await msgResponse.json();
                 allMessages[contact] = messages;
@@ -561,15 +578,8 @@
             console.log('Cargando contactos y grupos, página:', contactPage);
 
             try {
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
-                const contacts = await contactResponse.json();
-
                 if (contactPage === 1) {
                     contactList.innerHTML = ''; // Limpiar solo en la primera página
-                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                    loadedGroups = await groupResponse.json();
-
-                    // Cargar grupos primero
                     for (const group of loadedGroups) {
                         const unreadCount = (unreadMessages[group.group_id] || []).length;
                         const li = document.createElement('li');
@@ -584,11 +594,18 @@
                     }
                 }
 
+                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
+                const contacts = await contactResponse.json();
+                console.log(`Contactos recibidos (página ${contactPage}):`, contacts);
+
                 if (contacts.length < contactsPerPage) {
                     allContactsLoaded = true;
                 }
 
                 for (const contact of contacts) {
+                    if (!allContacts.has(contact)) {
+                        allContacts.add(contact); // Asegurar que todos los contactos se registren
+                    }
                     const unreadCount = (unreadMessages[contact] || []).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
@@ -601,7 +618,7 @@
                 }
 
                 contactPage++;
-                console.log('Contactos y grupos cargados exitosamente');
+                console.log('Contactos y grupos cargados exitosamente. Total contactos:', allContacts.size);
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err);
             } finally {
