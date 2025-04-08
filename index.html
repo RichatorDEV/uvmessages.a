@@ -6,7 +6,6 @@
     <title>UV Messages</title>
     <link rel="icon" type="image/png" href="https://files.catbox.moe/aifcmw.png">
     <style>
-        /* Estilos sin cambios */
         * {
             margin: 0;
             padding: 0;
@@ -355,7 +354,7 @@
     <!-- Creación de grupo -->
     <div id="group-creation">
         <h3>Crear Grupo</h3>
-        Livermore: text" id="group-name" placeholder="Nombre del grupo">
+        <input type="text" id="group-name" placeholder="Nombre del grupo">
         <input type="file" id="group-pic-create" accept="image/*" required>
         <div id="group-members-list">
             <!-- Se llenará dinámicamente con checkboxes -->
@@ -403,18 +402,18 @@
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
-        // Emojis sin cambios (omitidos por brevedad)
+        // Emojis (sin cambios, omitidos por brevedad)
         const emojiCategories = {
-            "Caras y Emociones": ["😀", "😁", "😂", /* ... */],
-            "Personas": ["👶", "🍼", "👧", /* ... */],
-            "Animales y Naturaleza": ["🐵", "🐒", "🦍", /* ... */],
-            "Comida y Bebida": ["🍇", "🍈", "🍉", /* ... */],
-            "Actividades": ["⚽", "🏀", "🏈", /* ... */],
-            "Viajes y Lugares": ["🌍", "🌎", "🌏", /* ... */],
-            "Objetos": ["⌚", "📱", "📲", /* ... */],
-            "Símbolos": ["❤️", "🧡", "💛", /* ... */],
-            "Banderas": ["🏳️", "🏴", "🏳️‍🌈", /* ... */],
-            "Clima y Tiempo": ["☀️", "🌞", "🌝", /* ... */]
+            "Caras y Emociones": ["😀", "😁", "😂"],
+            "Personas": ["👶", "🍼", "👧"],
+            "Animales y Naturaleza": ["🐵", "🐒", "🦍"],
+            "Comida y Bebida": ["🍇", "🍈", "🍉"],
+            "Actividades": ["⚽", "🏀", "🏈"],
+            "Viajes y Lugares": ["🌍", "🌎", "🌏"],
+            "Objetos": ["⌚", "📱", "📲"],
+            "Símbolos": ["❤️", "🧡", "💛"],
+            "Banderas": ["🏳️", "🏴", "🏳️‍🌈"],
+            "Clima y Tiempo": ["☀️", "🌞", "🌝"]
         };
 
         function toggleEmojiPanel(event) {
@@ -710,76 +709,70 @@
             }
         }
 
-        // Función corregida para cargar contactos y grupos
+        // Función corregida para cargar contactos
         async function loadContactsAndGroups() {
             if (isLoadingContacts) {
-                console.log('Carga de contactos ya en progreso');
+                console.log('Carga de contactos ya en progreso, esperando...');
                 return;
             }
             isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
-            contactList.innerHTML = ''; // Limpiar lista antes de recargar
+            
+            // Verificar que el elemento #contact-list exista
+            if (!contactList) {
+                console.error('Error: #contact-list no se encuentra en el DOM');
+                isLoadingContacts = false;
+                return;
+            }
+
+            contactList.innerHTML = ''; // Limpiar la lista antes de cargar
 
             try {
-                console.log('Cargando contactos y grupos para usuario:', currentUser);
+                console.log('Iniciando carga de contactos para:', currentUser);
 
-                // Cargar grupos
-                console.log('Grupos disponibles:', loadedGroups);
-                for (const group of loadedGroups) {
-                    const unreadCount = (unreadMessages[group.group_id] || []).length;
-                    const li = document.createElement('li');
-                    li.className = 'group';
-                    li.innerHTML = `
-                        <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                        ${group.creator === currentUser ? '<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(' + group.group_id + ')">⚙️</button>' : ''}
-                    `;
-                    li.onclick = () => selectContact(group.group_id, true);
-                    contactList.appendChild(li);
-                }
-
-                // Cargar contactos con paginación
-                console.log('Solicitando contactos - URL:', `${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
-                const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
+                // Cargar contactos desde el backend
+                const url = `${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`;
+                console.log('Solicitando contactos desde:', url);
+                const contactResponse = await fetch(url);
+                
                 if (!contactResponse.ok) {
-                    throw new Error(`Error en la solicitud: ${contactResponse.status} - ${contactResponse.statusText}`);
+                    throw new Error(`Error al obtener contactos: ${contactResponse.status} - ${contactResponse.statusText}`);
                 }
+
                 const contacts = await contactResponse.json();
-                console.log(`Contactos recibidos (página ${contactPage}):`, contacts);
+                console.log('Contactos recibidos del backend:', contacts);
 
-                // Asegurarse de que allContacts esté actualizado
-                contacts.forEach(contact => allContacts.add(contact));
-
-                // Renderizar contactos
-                for (const contact of contacts) {
-                    const unreadCount = (unreadMessages[contact] || []).length;
-                    const li = document.createElement('li');
-                    li.className = 'contact';
-                    li.innerHTML = `
-                        <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
-                        ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                    `;
-                    li.onclick = () => selectContact(contact, false);
-                    contactList.appendChild(li);
-                    console.log('Contacto renderizado:', contact);
-                }
-
-                // Actualizar estado de paginación
-                if (contacts.length < contactsPerPage) {
-                    allContactsLoaded = true;
-                    console.log('Todos los contactos han sido cargados');
+                // Si no hay contactos en esta página
+                if (contacts.length === 0 && contactPage === 1) {
+                    contactList.innerHTML = '<li>No hay contactos disponibles</li>';
+                    console.log('No se encontraron contactos para mostrar');
                 } else {
-                    contactPage++;
-                    console.log('Página incrementada a:', contactPage);
-                }
+                    // Renderizar los contactos recibidos
+                    contacts.forEach(contact => {
+                        allContacts.add(contact); // Añadir al Set para seguimiento
+                        const unreadCount = (unreadMessages[contact] || []).length;
+                        const li = document.createElement('li');
+                        li.className = 'contact';
+                        li.innerHTML = `
+                            <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
+                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                        `;
+                        li.onclick = () => selectContact(contact, false);
+                        contactList.appendChild(li);
+                        console.log('Contacto añadido a la lista:', contact);
+                    });
 
-                // Mensaje si no hay contactos ni grupos
-                if (contactList.children.length === 0) {
-                    contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
-                    console.log('No se encontraron contactos ni grupos para mostrar');
+                    // Actualizar paginación
+                    if (contacts.length < contactsPerPage) {
+                        allContactsLoaded = true;
+                        console.log('Todos los contactos han sido cargados');
+                    } else {
+                        contactPage++;
+                        console.log('Página de contactos incrementada a:', contactPage);
+                    }
                 }
             } catch (err) {
-                console.error('Error al cargar contactos y grupos:', err);
+                console.error('Error al cargar contactos:', err.message);
                 contactList.innerHTML = '<li>Error al cargar contactos: ' + err.message + '</li>';
             } finally {
                 isLoadingContacts = false;
