@@ -487,7 +487,7 @@
 
         async function login() {
             console.log('login llamado');
-            const username = document.getElementById('username').value;
+            const username = document.getElementById('username').value.toLowerCase(); // Normalizar a minúsculas
             const password = document.getElementById('password').value;
             console.log('Datos de login:', { username, password });
             try {
@@ -524,7 +524,7 @@
 
         async function register() {
             console.log('register llamado');
-            const username = document.getElementById('username').value;
+            const username = document.getElementById('username').value.toLowerCase(); // Normalizar a minúsculas
             const password = document.getElementById('password').value;
             console.log('Datos de registro:', { username, password });
             try {
@@ -560,8 +560,9 @@
                 allContacts.clear();
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
-                console.log('Todos los contactos precargados:', contacts);
+                console.log('Todos los contactos recibidos del backend:', contacts); // Log para depuración
                 contacts.forEach(contact => allContacts.add(contact));
+                console.log('allContacts después de precarga:', Array.from(allContacts)); // Confirmar contenido
 
                 // Precargar fotos de perfil
                 const allUsers = new Set([currentUser, ...allContacts]);
@@ -658,7 +659,7 @@
         }
 
         async function addContact() {
-            const contact = document.getElementById('new-contact').value.trim();
+            const contact = document.getElementById('new-contact').value.trim().toLowerCase(); // Normalizar a minúsculas
             if (!contact || contact === currentUser) {
                 document.getElementById('new-contact').value = '';
                 return;
@@ -701,7 +702,6 @@
             }
         }
 
-        // Función optimizada para cargar todos los contactos y grupos sin límite
         async function loadContactsAndGroups() {
             if (isLoadingContacts) {
                 console.log('Carga de contactos y grupos ya en progreso, esperando...');
@@ -732,7 +732,7 @@
                 } else {
                     // Renderizar todos los grupos primero
                     if (isInitialLoad) {
-                        console.log('Renderizando todos los grupos:', loadedGroups);
+                        console.log('Grupos a renderizar:', loadedGroups);
                         loadedGroups.forEach(group => {
                             if (!contactList.querySelector(`[data-group-id="${group.group_id}"]`)) {
                                 const unreadCount = (unreadMessages[group.group_id] || []).length;
@@ -753,7 +753,7 @@
                     }
 
                     // Renderizar todos los contactos después
-                    console.log('Renderizando todos los contactos:', Array.from(allContacts));
+                    console.log('Contactos a renderizar:', Array.from(allContacts));
                     allContacts.forEach(contact => {
                         if (!contactList.querySelector(`[data-contact="${contact}"]`)) {
                             const unreadCount = (unreadMessages[contact] || []).length;
@@ -772,6 +772,7 @@
 
                     // Añadir todo al DOM en una sola operación
                     contactList.appendChild(fragment);
+                    console.log('Total de elementos renderizados en #contact-list:', contactList.children.length);
                 }
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err.message);
@@ -1077,7 +1078,7 @@
         }
 
         async function addGroupMember() {
-            const newMember = document.getElementById('new-group-member').value;
+            const newMember = document.getElementById('new-group-member').value.toLowerCase(); // Normalizar a minúsculas
             if (newMember) {
                 const response = await fetch(`${BASE_URL}/group-add-member`, {
                     method: 'POST',
