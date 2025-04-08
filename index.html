@@ -536,7 +536,7 @@
                 "🇬🇹", "🇬🇺", "🇬🇼", "🇬🇾", "🇭🇰", "🇭🇲", "🇭🇳", "🇭🇷", "🇭🇹", "🇭🇺",
                 "🇮🇨", "🇮🇩", "🇮🇪", "🇮🇱", "🇮🇲", "🇮🇳", "🇮🇴", "🇮🇶", "🇮🇷", "🇮🇸",
                 "🇮🇹", "🇯🇪", "🇯🇲", "🇯🇴", "🇯🇵", "🇰🇪", "🇰🇬", "🇰🇭", "🇰🇮", "🇰🇲",
-                "🇰🇳", "🇰🇵", "🇰🇷", "🇰🇼", "🇰🇾", "🇰🇿", "🇱🇦", "🇱🇧", "🇱🇨", "🇱🇮",
+                "🇰🇳", "🇰🇵", "🇰🇷", "🇰🇼", "🇰🇾", "🇰🇿", "🇱🇪", "🇱🇧", "🇱🇨", "🇱🇮",
                 "🇱🇰", "🇱🇷", "🇱🇸", "🇱🇹", "🇱🇺", "🇱🇻", "🇱🇾", "🇲🇦", "🇲🇨", "🇲🇩",
                 "🇲🇪", "🇲🇫", "🇲🇬", "🇲🇭", "🇲🇰", "🇲🇱", "🇲🇲", "🇲🇳", "🇲🇴", "🇲🇵",
                 "🇲🇶", "🇲🇷", "🇲🇸", "🇲🇹", "🇲🇺", "🇲🇻", "🇲🇼", "🇲🇽", "🇲🇾", "🇲🇿",
@@ -545,7 +545,7 @@
                 "🇵🇲", "🇵🇳", "🇵🇷", "🇵🇸", "🇵🇹", "🇵🇼", "🇵🇾", "🇶🇦", "🇷🇪", "🇷🇴",
                 "🇷🇸", "🇷🇺", "🇷🇼", "🇸🇦", "🇸🇧", "🇸🇨", "🇸🇩", "🇸🇪", "🇸🇬", "🇸🇭",
                 "🇸🇮", "🇸🇯", "🇸🇰", "🇸🇱", "🇸🇲", "🇸🇳", "🇸🇴", "🇸🇷", "🇸🇸", "🇸🇹",
-                "🇸🇻", "🇸🇽", "🇸🇾", "🇸🇿", "🇹🇦", "🇹🇨", "🇹🇩", "🇹🇫", "🇹🇬", "🇹🇭",
+                "🇸🇻", "🇸🇽", "🇸🇾", "🇸🇿", "🇹🇦", "🇹🇚", "🇹🇩", "🇹🇫", "🇹🇬", "🇹🇭",
                 "🇹🇯", "🇹🇰", "🇹🇱", "🇹🇲", "🇹🇳", "🇹🇴", "🇹🇷", "🇹🇹", "🇹🇻", "🇹🇼",
                 "🇹🇿", "🇺🇦", "🇺🇬", "🇺🇲", "🇺🇳", "🇺🇸", "🇺🇾", "🇺🇿", "🇻🇦", "🇻🇨",
                 "🇻🇪", "🇻🇬", "🇻🇮", "🇻🇳", "🇻🇺", "🇼🇫", "🇼🇸", "🇽🇰", "🇾🇪", "🇾🇹",
@@ -743,6 +743,7 @@
                 await loadContactsAndGroups();
             } catch (err) {
                 console.error('Error al precargar datos:', err);
+                alert('Error al cargar datos iniciales. Por favor, recarga la página.');
             }
         }
 
@@ -761,7 +762,7 @@
                         document.getElementById('current-contact').textContent = '';
                         document.getElementById('messages').innerHTML = '';
                     }
-                    loadContactsAndGroups();
+                    await loadContactsAndGroups();
                 } else {
                     const chatId = message.group_id || (message.sender === currentUser ? message.receiver : message.sender);
                     allMessages[chatId] = allMessages[chatId] || [];
@@ -776,7 +777,7 @@
                         }
                         contactPage = 1;
                         allContactsLoaded = false;
-                        loadContactsAndGroups();
+                        await loadContactsAndGroups(); // Refrescar lista inmediatamente
                     }
 
                     if (chatId === currentContact) {
@@ -799,7 +800,7 @@
                             unreadMessages[chatId].push(message.id);
                             console.log(`Notificación añadida para ${chatId}. Total: ${unreadMessages[chatId].length}`);
                         }
-                        loadContactsAndGroups();
+                        await loadContactsAndGroups(); // Refrescar lista para mostrar notificaciones
                     }
                 }
             };
@@ -809,7 +810,10 @@
 
         async function addContact() {
             const contact = document.getElementById('new-contact').value.trim();
-            if (!contact) return;
+            if (!contact || contact === currentUser) {
+                document.getElementById('new-contact').value = '';
+                return;
+            }
             if (allContacts.has(contact)) {
                 console.log(`Contacto ${contact} ya existe`);
                 document.getElementById('new-contact').value = '';
@@ -830,20 +834,23 @@
                         const picData = await picResponse.json();
                         profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                     }
-                    contactPage = 1;
+                    contactPage = 1; // Reiniciar paginación
                     allContactsLoaded = false;
-                    await loadContactsAndGroups();
+                    await loadContactsAndGroups(); // Refrescar lista inmediatamente
                     document.getElementById('new-contact').value = '';
                     if (!currentContact) {
                         selectContact(contact, false);
                     }
                 } else {
                     const error = await response.json();
+                    console.error('Error al agregar contacto:', error);
                     alert(error.error || 'Error al agregar contacto');
                 }
             } catch (err) {
                 console.error('Error en addContact:', err);
                 alert('Error de conexión al agregar contacto');
+                // Refrescar lista para evitar inconsistencias
+                await loadContactsAndGroups();
             }
         }
 
@@ -854,11 +861,10 @@
             }
             isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
-            console.log('Cargando contactos y grupos, página:', contactPage);
+            contactList.innerHTML = ''; // Limpiar lista antes de recargar
 
             try {
-                contactList.innerHTML = '';
-
+                // Cargar grupos
                 console.log('Grupos a renderizar:', loadedGroups);
                 for (const group of loadedGroups) {
                     const unreadCount = (unreadMessages[group.group_id] || []).length;
@@ -873,19 +879,18 @@
                     contactList.appendChild(li);
                 }
 
+                // Cargar contactos con paginación
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`);
                 if (!contactResponse.ok) {
                     throw new Error(`Error en la solicitud: ${contactResponse.status}`);
                 }
                 const contacts = await contactResponse.json();
-                console.log(`Contactos recibidos del servidor (página ${contactPage}):`, contacts);
+                console.log(`Contactos recibidos (página ${contactPage}):`, contacts);
 
-                if (contacts.length === 0 && contactPage === 1) {
-                    console.log('No hay contactos para mostrar en esta página');
-                }
+                // Actualizar allContacts con los contactos del servidor
+                contacts.forEach(contact => allContacts.add(contact));
 
                 for (const contact of contacts) {
-                    allContacts.add(contact);
                     const unreadCount = (unreadMessages[contact] || []).length;
                     const li = document.createElement('li');
                     li.className = 'contact';
@@ -904,7 +909,10 @@
                     contactPage++;
                 }
 
-                console.log('Contactos y grupos cargados. Total contactos en allContacts:', allContacts.size);
+                // Si no hay contactos ni grupos, mostrar mensaje
+                if (contactList.children.length === 0) {
+                    contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
+                }
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err);
                 contactList.innerHTML = '<li>Error al cargar contactos</li>';
