@@ -509,10 +509,9 @@
                     document.getElementById('my-profile-pic').src = profilePics[currentUser];
                     await preloadData();
                     setupWebSocket();
-                    const contactList = document.getElementById('contact-list');
-                    if (contactList.children.length > 0) {
-                        contactList.children[0].click();
-                    }
+                    // No seleccionamos un contacto automáticamente
+                    document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
+                    document.getElementById('messages').innerHTML = '';
                 } else {
                     const error = await response.json();
                     console.error('Error en login:', error);
@@ -552,10 +551,12 @@
 
         async function preloadData() {
             try {
+                // Precargar grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 loadedGroups = await groupResponse.json();
                 console.log('Grupos precargados:', loadedGroups);
 
+                // Precargar contactos
                 allContacts.clear();
                 let page = 1;
                 let moreContacts = true;
@@ -571,6 +572,7 @@
                     }
                 }
 
+                // Precargar fotos de perfil
                 const allUsers = new Set([currentUser, ...allContacts]);
                 for (const group of loadedGroups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
@@ -585,6 +587,7 @@
                     }
                 }
 
+                // Precargar mensajes
                 for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     allMessages[contact] = await msgResponse.json();
@@ -615,7 +618,7 @@
                     loadedGroups = loadedGroups.filter(g => g.group_id !== message.group_id);
                     if (currentContact === message.group_id) {
                         currentContact = null;
-                        document.getElementById('current-contact').textContent = '';
+                        document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
                         document.getElementById('messages').innerHTML = '';
                     }
                     await loadContactsAndGroups();
@@ -709,16 +712,15 @@
             }
         }
 
-        // Función corregida para cargar contactos
+        // Función corregida para cargar contactos y grupos
         async function loadContactsAndGroups() {
             if (isLoadingContacts) {
-                console.log('Carga de contactos ya en progreso, esperando...');
+                console.log('Carga de contactos y grupos ya en progreso, esperando...');
                 return;
             }
             isLoadingContacts = true;
             const contactList = document.getElementById('contact-list');
             
-            // Verificar que el elemento #contact-list exista
             if (!contactList) {
                 console.error('Error: #contact-list no se encuentra en el DOM');
                 isLoadingContacts = false;
@@ -728,28 +730,31 @@
             contactList.innerHTML = ''; // Limpiar la lista antes de cargar
 
             try {
-                console.log('Iniciando carga de contactos para:', currentUser);
+                console.log('Iniciando carga de contactos y grupos para:', currentUser);
 
-                // Cargar contactos desde el backend
-                const url = `${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`;
-                console.log('Solicitando contactos desde:', url);
-                const contactResponse = await fetch(url);
-                
+                // Cargar contactos
+                const contactUrl = `${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`;
+                console.log('Solicitando contactos desde:', contactUrl);
+                const contactResponse = await fetch(contactUrl);
                 if (!contactResponse.ok) {
                     throw new Error(`Error al obtener contactos: ${contactResponse.status} - ${contactResponse.statusText}`);
                 }
-
                 const contacts = await contactResponse.json();
                 console.log('Contactos recibidos del backend:', contacts);
 
-                // Si no hay contactos en esta página
-                if (contacts.length === 0 && contactPage === 1) {
-                    contactList.innerHTML = '<li>No hay contactos disponibles</li>';
-                    console.log('No se encontraron contactos para mostrar');
+                // Cargar grupos (solo una vez, sin paginación adicional aquí)
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                loadedGroups = await groupResponse.json();
+                console.log('Grupos recibidos del backend:', loadedGroups);
+
+                // Si no hay nada que mostrar
+                if (contacts.length === 0 && loadedGroups.length === 0 && contactPage === 1) {
+                    contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
+                    console.log('No se encontraron contactos ni grupos para mostrar');
                 } else {
-                    // Renderizar los contactos recibidos
+                    // Renderizar contactos
                     contacts.forEach(contact => {
-                        allContacts.add(contact); // Añadir al Set para seguimiento
+                        allContacts.add(contact);
                         const unreadCount = (unreadMessages[contact] || []).length;
                         const li = document.createElement('li');
                         li.className = 'contact';
@@ -762,7 +767,22 @@
                         console.log('Contacto añadido a la lista:', contact);
                     });
 
-                    // Actualizar paginación
+                    // Renderizar grupos
+                    loadedGroups.forEach(group => {
+                        const unreadCount = (unreadMessages[group.group_id] || []).length;
+                        const li = document.createElement('li');
+                        li.className = 'group';
+                        li.innerHTML = `
+                            <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
+                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                            ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
+                        `;
+                        li.onclick = () => selectContact(group.group_id, true);
+                        contactList.appendChild(li);
+                        console.log('Grupo añadido a la lista:', group.group_name);
+                    });
+
+                    // Actualizar paginación de contactos
                     if (contacts.length < contactsPerPage) {
                         allContactsLoaded = true;
                         console.log('Todos los contactos han sido cargados');
@@ -772,8 +792,8 @@
                     }
                 }
             } catch (err) {
-                console.error('Error al cargar contactos:', err.message);
-                contactList.innerHTML = '<li>Error al cargar contactos: ' + err.message + '</li>';
+                console.error('Error al cargar contactos y grupos:', err.message);
+                contactList.innerHTML = '<li>Error al cargar: ' + err.message + '</li>';
             } finally {
                 isLoadingContacts = false;
             }
@@ -1108,7 +1128,7 @@
                         alert('Grupo eliminado con éxito');
                         delete allMessages[currentContact];
                         currentContact = null;
-                        document.getElementById('current-contact').textContent = '';
+                        document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
                         document.getElementById('messages').innerHTML = '';
                         hideGroupSettings();
                         await loadContactsAndGroups();
