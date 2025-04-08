@@ -734,6 +734,10 @@
             if (isInitialLoad) {
                 contactList.innerHTML = '';
                 console.log('Carga inicial: limpiando #contact-list');
+                // Recargar grupos desde el backend en cada carga inicial
+                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                loadedGroups = await groupResponse.json();
+                console.log('Grupos recargados del backend:', loadedGroups);
             }
 
             try {
@@ -749,20 +753,12 @@
                 const contacts = await contactResponse.json();
                 console.log('Contactos recibidos del backend:', contacts);
 
-                // Cargar grupos solo en la carga inicial
-                if (isInitialLoad) {
-                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                    loadedGroups = await groupResponse.json();
-                    console.log('Grupos recibidos del backend:', loadedGroups);
-                }
-
                 if (isInitialLoad && contacts.length === 0 && loadedGroups.length === 0) {
                     contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
                     console.log('No se encontraron contactos ni grupos para mostrar');
                 } else {
                     // Renderizar contactos
                     contacts.forEach(contact => {
-                        // Renderizar siempre en carga inicial, o si no está en la lista
                         const exists = contactList.querySelector(`[data-contact="${contact}"]`);
                         if (!exists) {
                             const unreadCount = (unreadMessages[contact] || []).length;
@@ -779,26 +775,29 @@
                         }
                     });
 
-                    // Renderizar grupos solo en la carga inicial
+                    // Renderizar grupos en la carga inicial
                     if (isInitialLoad) {
                         loadedGroups.forEach(group => {
-                            const unreadCount = (unreadMessages[group.group_id] || []).length;
-                            const li = document.createElement('li');
-                            li.className = 'group';
-                            li.dataset.groupId = group.group_id;
-                            li.innerHTML = `
-                                <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
-                                ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                                ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
-                            `;
-                            li.onclick = () => selectContact(group.group_id, true);
-                            contactList.appendChild(li);
-                            console.log('Grupo añadido a la lista:', group.group_name);
+                            const exists = contactList.querySelector(`[data-group-id="${group.group_id}"]`);
+                            if (!exists) {
+                                const unreadCount = (unreadMessages[group.group_id] || []).length;
+                                const li = document.createElement('li');
+                                li.className = 'group';
+                                li.dataset.groupId = group.group_id;
+                                li.innerHTML = `
+                                    <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
+                                    ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                                    ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
+                                `;
+                                li.onclick = () => selectContact(group.group_id, true);
+                                contactList.appendChild(li);
+                                console.log('Grupo añadido a la lista:', group.group_name, 'ID:', group.group_id);
+                            }
                         });
                         isInitialLoad = false;
                     }
 
-                    // Actualizar paginación
+                    // Actualizar paginación de contactos
                     if (contacts.length < contactsPerPage) {
                         allContactsLoaded = true;
                         console.log('Todos los contactos han sido cargados');
