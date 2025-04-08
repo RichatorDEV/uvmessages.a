@@ -399,6 +399,7 @@
         let loadedGroups = [];
         let allContacts = new Set();
         let isSending = false;
+        let isInitialLoad = true; // Nueva bandera para controlar la carga inicial
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
@@ -507,9 +508,9 @@
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
                     document.getElementById('my-profile-pic').src = profilePics[currentUser];
+                    isInitialLoad = true; // Marcar como carga inicial
                     await preloadData();
                     setupWebSocket();
-                    // No seleccionamos un contacto automáticamente
                     document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
                     document.getElementById('messages').innerHTML = '';
                 } else {
@@ -695,6 +696,7 @@
                     }
                     contactPage = 1;
                     allContactsLoaded = false;
+                    isInitialLoad = true; // Forzar recarga completa
                     await loadContactsAndGroups();
                     document.getElementById('new-contact').value = '';
                     if (!currentContact) {
@@ -727,12 +729,16 @@
                 return;
             }
 
-            contactList.innerHTML = ''; // Limpiar la lista antes de cargar
+            // Solo limpiar la lista en la carga inicial
+            if (isInitialLoad) {
+                contactList.innerHTML = '';
+                console.log('Carga inicial: limpiando #contact-list');
+            }
 
             try {
                 console.log('Iniciando carga de contactos y grupos para:', currentUser);
 
-                // Cargar contactos
+                // Cargar contactos (incremental)
                 const contactUrl = `${BASE_URL}/contacts/${currentUser}?page=${contactPage}&limit=${contactsPerPage}`;
                 console.log('Solicitando contactos desde:', contactUrl);
                 const contactResponse = await fetch(contactUrl);
@@ -742,45 +748,54 @@
                 const contacts = await contactResponse.json();
                 console.log('Contactos recibidos del backend:', contacts);
 
-                // Cargar grupos (solo una vez, sin paginación adicional aquí)
-                const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
-                loadedGroups = await groupResponse.json();
-                console.log('Grupos recibidos del backend:', loadedGroups);
+                // Cargar grupos solo en la carga inicial
+                if (isInitialLoad) {
+                    const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                    loadedGroups = await groupResponse.json();
+                    console.log('Grupos recibidos del backend:', loadedGroups);
+                }
 
-                // Si no hay nada que mostrar
-                if (contacts.length === 0 && loadedGroups.length === 0 && contactPage === 1) {
+                // Si no hay nada que mostrar en la carga inicial
+                if (isInitialLoad && contacts.length === 0 && loadedGroups.length === 0) {
                     contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
                     console.log('No se encontraron contactos ni grupos para mostrar');
                 } else {
-                    // Renderizar contactos
+                    // Renderizar contactos (añadir sin eliminar existentes)
                     contacts.forEach(contact => {
-                        allContacts.add(contact);
-                        const unreadCount = (unreadMessages[contact] || []).length;
-                        const li = document.createElement('li');
-                        li.className = 'contact';
-                        li.innerHTML = `
-                            <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
-                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                        `;
-                        li.onclick = () => selectContact(contact, false);
-                        contactList.appendChild(li);
-                        console.log('Contacto añadido a la lista:', contact);
+                        if (!allContacts.has(contact)) { // Evitar duplicados
+                            allContacts.add(contact);
+                            const unreadCount = (unreadMessages[contact] || []).length;
+                            const li = document.createElement('li');
+                            li.className = 'contact';
+                            li.dataset.contact = contact; // Identificador para evitar duplicados
+                            li.innerHTML = `
+                                <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
+                                ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                            `;
+                            li.onclick = () => selectContact(contact, false);
+                            contactList.appendChild(li);
+                            console.log('Contacto añadido a la lista:', contact);
+                        }
                     });
 
-                    // Renderizar grupos
-                    loadedGroups.forEach(group => {
-                        const unreadCount = (unreadMessages[group.group_id] || []).length;
-                        const li = document.createElement('li');
-                        li.className = 'group';
-                        li.innerHTML = `
-                            <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
-                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                            ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
-                        `;
-                        li.onclick = () => selectContact(group.group_id, true);
-                        contactList.appendChild(li);
-                        console.log('Grupo añadido a la lista:', group.group_name);
-                    });
+                    // Renderizar grupos solo en la carga inicial
+                    if (isInitialLoad) {
+                        loadedGroups.forEach(group => {
+                            const unreadCount = (unreadMessages[group.group_id] || []).length;
+                            const li = document.createElement('li');
+                            li.className = 'group';
+                            li.dataset.groupId = group.group_id; // Identificador para evitar duplicados
+                            li.innerHTML = `
+                                <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
+                                ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                                ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
+                            `;
+                            li.onclick = () => selectContact(group.group_id, true);
+                            contactList.appendChild(li);
+                            console.log('Grupo añadido a la lista:', group.group_name);
+                        });
+                        isInitialLoad = false; // Desactivar carga inicial después de la primera vez
+                    }
 
                     // Actualizar paginación de contactos
                     if (contacts.length < contactsPerPage) {
@@ -793,7 +808,9 @@
                 }
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err.message);
-                contactList.innerHTML = '<li>Error al cargar: ' + err.message + '</li>';
+                if (isInitialLoad) {
+                    contactList.innerHTML = '<li>Error al cargar: ' + err.message + '</li>';
+                }
             } finally {
                 isLoadingContacts = false;
             }
@@ -874,8 +891,31 @@
                 }
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 unreadMessages[currentContact] = [];
-                loadContactsAndGroups();
+                // No recargar la lista completa, solo actualizar notificaciones si es necesario
+                updateContactListNotifications();
             }
+        }
+
+        function updateContactListNotifications() {
+            const contactList = document.getElementById('contact-list');
+            Array.from(contactList.children).forEach(li => {
+                const contact = li.dataset.contact;
+                const groupId = li.dataset.groupId;
+                const unreadCount = (unreadMessages[contact || groupId] || []).length;
+                const notificationSpan = li.querySelector('.notification');
+                if (unreadCount > 0) {
+                    if (notificationSpan) {
+                        notificationSpan.textContent = unreadCount;
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'notification';
+                        span.textContent = unreadCount;
+                        li.appendChild(span);
+                    }
+                } else if (notificationSpan) {
+                    notificationSpan.remove();
+                }
+            });
         }
 
         async function getGroupName(groupId) {
@@ -906,7 +946,7 @@
 
         function hideSettings() {
             document.getElementById('settings').style.display = 'none';
-            loadContactsAndGroups();
+            updateContactListNotifications();
         }
 
         async function updateProfilePic() {
@@ -984,6 +1024,7 @@
                     loadedGroups = await groupResponse.json();
                     const newGroup = loadedGroups.find(g => g.group_name === groupName);
                     allMessages[newGroup.group_id] = [];
+                    isInitialLoad = true; // Forzar recarga completa
                     await loadContactsAndGroups();
                     hideGroupCreation();
                     selectContact(newGroup.group_id, true);
@@ -1016,7 +1057,7 @@
 
         function hideGroupSettings() {
             document.getElementById('group-settings').style.display = 'none';
-            loadContactsAndGroups();
+            updateContactListNotifications();
         }
 
         async function updateGroupPic() {
@@ -1035,7 +1076,8 @@
                         alert('Foto del grupo actualizada con éxito');
                         const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                         loadedGroups = await groupResponse.json();
-                        loadContactsAndGroups();
+                        isInitialLoad = true; // Forzar recarga completa
+                        await loadContactsAndGroups();
                         hideGroupSettings();
                     } else {
                         const error = await response.json();
@@ -1061,7 +1103,8 @@
                     document.getElementById('current-contact').textContent = `${groupName} (Grupo)`;
                     const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                     loadedGroups = await groupResponse.json();
-                    loadContactsAndGroups();
+                    isInitialLoad = true; // Forzar recarga completa
+                    await loadContactsAndGroups();
                     hideGroupSettings();
                 } else {
                     const error = await response.json();
@@ -1088,7 +1131,7 @@
                         profilePics[newMember] = picData.profile_pic || DEFAULT_PROFILE_PIC;
                     }
                     showGroupSettings(currentContact);
-                    loadContactsAndGroups();
+                    updateContactListNotifications();
                 } else {
                     const error = await response.json();
                     alert(error.error || 'Error al añadir miembro');
@@ -1107,7 +1150,7 @@
             if (response.ok) {
                 alert('Miembro expulsado con éxito');
                 showGroupSettings(currentContact);
-                loadContactsAndGroups();
+                updateContactListNotifications();
             } else {
                 const error = await response.json();
                 alert(error.error || 'Error al expulsar miembro');
@@ -1131,6 +1174,7 @@
                         document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
                         document.getElementById('messages').innerHTML = '';
                         hideGroupSettings();
+                        isInitialLoad = true; // Forzar recarga completa
                         await loadContactsAndGroups();
                     } else {
                         const error = await response.json();
