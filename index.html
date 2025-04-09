@@ -487,9 +487,9 @@
 
         async function login() {
             console.log('login llamado');
-            const username = document.getElementById('username').value.toLowerCase(); // Normalizar a minúsculas
+            const username = document.getElementById('username').value; // SIN .toLowerCase()
             const password = document.getElementById('password').value;
-            console.log('Datos de login:', { username, password });
+            console.log('Datos de login enviados tal cual:', { username, password });
             try {
                 const response = await fetch(`${BASE_URL}/login`, {
                     method: 'POST',
@@ -500,7 +500,7 @@
                 if (response.ok) {
                     const user = await response.json();
                     console.log('Usuario logueado:', user);
-                    currentUser = user.username;
+                    currentUser = user.username; // Guardamos el username tal como viene del backend
                     profilePics[currentUser] = user.profile_pic || DEFAULT_PROFILE_PIC;
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
@@ -524,9 +524,9 @@
 
         async function register() {
             console.log('register llamado');
-            const username = document.getElementById('username').value.toLowerCase(); // Normalizar a minúsculas
+            const username = document.getElementById('username').value; // SIN .toLowerCase()
             const password = document.getElementById('password').value;
-            console.log('Datos de registro:', { username, password });
+            console.log('Datos de registro enviados tal cual:', { username, password });
             try {
                 const response = await fetch(`${BASE_URL}/register`, {
                     method: 'POST',
@@ -560,9 +560,9 @@
                 allContacts.clear();
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
-                console.log('Todos los contactos recibidos del backend:', contacts); // Log para depuración
+                console.log('Todos los contactos recibidos del backend:', contacts);
                 contacts.forEach(contact => allContacts.add(contact));
-                console.log('allContacts después de precarga:', Array.from(allContacts)); // Confirmar contenido
+                console.log('allContacts después de precarga:', Array.from(allContacts));
 
                 // Precargar fotos de perfil
                 const allUsers = new Set([currentUser, ...allContacts]);
@@ -659,7 +659,7 @@
         }
 
         async function addContact() {
-            const contact = document.getElementById('new-contact').value.trim().toLowerCase(); // Normalizar a minúsculas
+            const contact = document.getElementById('new-contact').value.trim(); // SIN .toLowerCase()
             if (!contact || contact === currentUser) {
                 document.getElementById('new-contact').value = '';
                 return;
@@ -1078,7 +1078,7 @@
         }
 
         async function addGroupMember() {
-            const newMember = document.getElementById('new-group-member').value.toLowerCase(); // Normalizar a minúsculas
+            const newMember = document.getElementById('new-group-member').value; // SIN .toLowerCase()
             if (newMember) {
                 const response = await fetch(`${BASE_URL}/group-add-member`, {
                     method: 'POST',
