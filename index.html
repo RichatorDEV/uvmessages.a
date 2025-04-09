@@ -44,6 +44,9 @@
             background: #fff;
             padding: 20px;
             border-right: 1px solid #e0e0e0;
+            height: 100%; /* Ajustado para ocupar toda la altura del contenedor */
+            display: flex;
+            flex-direction: column; /* Permite que los elementos internos se distribuyan verticalmente */
         }
         #chat-area {
             width: 65%;
@@ -61,8 +64,8 @@
         }
         #contact-list {
             list-style: none;
-            max-height: 400px;
-            overflow-y: auto;
+            overflow-y: auto; /* Mantiene el desplazamiento vertical */
+            height: calc(100% - 160px); /* Ajustado para ocupar el espacio restante */
         }
         .contact, .group {
             display: flex;
