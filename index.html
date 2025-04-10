@@ -154,6 +154,15 @@
         button:hover {
             background: #0066cc;
         }
+        #logout-button {
+            background: #ff4444;
+            width: auto;
+            padding: 5px 10px;
+            margin-left: 10px;
+        }
+        #logout-button:hover {
+            background: #cc0000;
+        }
         #message-input-container {
             display: flex;
             align-items: center;
@@ -262,7 +271,7 @@
             background: none;
             border: none;
             cursor: pointer;
-            margin-left: auto;
+            margin-left: 10px;
         }
         .settings-button:hover {
             background: #e0e0e0;
@@ -328,6 +337,7 @@
                 <img id="my-profile-pic" class="profile-pic" src="https://files.catbox.moe/q0qka5.png" alt="Perfil">
                 <span id="my-username"></span>
                 <button class="settings-button" onclick="showSettings()">⚙️</button>
+                <button id="logout-button" onclick="logout()">Cerrar Sesión</button>
             </div>
             <input type="text" id="new-contact" placeholder="Agregar contacto">
             <button onclick="addContact()">Agregar</button>
@@ -403,6 +413,25 @@
         let isInitialLoad = true;
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
+
+        // Verificar sesión al cargar la página
+        window.onload = function() {
+            const storedUser = localStorage.getItem('currentUser');
+            const storedProfilePic = localStorage.getItem('profilePic');
+            if (storedUser && storedProfilePic) {
+                currentUser = storedUser;
+                profilePics[currentUser] = storedProfilePic;
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('messenger-container').style.display = 'flex';
+                document.getElementById('my-username').textContent = currentUser;
+                document.getElementById('my-profile-pic').src = profilePics[currentUser];
+                isInitialLoad = true;
+                preloadData();
+                setupWebSocket();
+                document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
+                document.getElementById('messages').innerHTML = '';
+            }
+        };
 
         const emojiCategories = {
             "Caras y Emociones": ["😀", "😁", "😂"],
@@ -504,6 +533,11 @@
                     console.log('Usuario logueado:', user);
                     currentUser = user.username;
                     profilePics[currentUser] = user.profile_pic || DEFAULT_PROFILE_PIC;
+                    
+                    // Guardar en localStorage
+                    localStorage.setItem('currentUser', currentUser);
+                    localStorage.setItem('profilePic', profilePics[currentUser]);
+                    
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
                     document.getElementById('my-username').textContent = currentUser;
@@ -548,6 +582,24 @@
                 console.error('Error en fetch /register:', err);
                 alert('Error de conexión con el servidor');
             }
+        }
+
+        function logout() {
+            console.log('Cerrando sesión');
+            if (ws) ws.close();
+            currentUser = null;
+            allContacts.clear();
+            loadedGroups = [];
+            allMessages = {};
+            unreadMessages = {};
+            profilePics = {};
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('profilePic');
+            document.getElementById('messenger-container').style.display = 'none';
+            document.getElementById('auth-container').style.display = 'block';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            if (!isLoginMode) toggleAuth(); // Volver a modo login si estaba en registro
         }
 
         async function preloadData() {
@@ -929,6 +981,7 @@
                     const profilePic = e.target.result;
                     document.getElementById('my-profile-pic').src = profilePic;
                     profilePics[currentUser] = profilePic;
+                    localStorage.setItem('profilePic', profilePic); // Actualizar en localStorage
                     const response = await fetch(`${BASE_URL}/profile-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
