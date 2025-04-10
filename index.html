@@ -552,16 +552,28 @@
 
         async function preloadData() {
             try {
+                console.log('Iniciando precarga de datos para usuario:', currentUser);
+
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
+                if (!groupResponse.ok) {
+                    throw new Error(`Error al cargar grupos: ${groupResponse.status}`);
+                }
                 loadedGroups = await groupResponse.json();
                 loadedGroupIds = new Set(loadedGroups.map(g => g.group_id));
                 console.log('Grupos precargados:', loadedGroups);
 
                 allContacts.clear();
+                console.log('Solicitando contactos desde:', `${BASE_URL}/contacts/${currentUser}`);
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
+                if (!contactResponse.ok) {
+                    throw new Error(`Error al cargar contactos: ${contactResponse.status}`);
+                }
                 const contacts = await contactResponse.json();
-                console.log('Todos los contactos recibidos del backend:', contacts);
-                contacts.forEach(contact => allContacts.add(contact));
+                console.log('Respuesta del backend para contactos:', contacts);
+                contacts.forEach(contact => {
+                    allContacts.add(contact);
+                    console.log(`Contacto añadido a allContacts: ${contact}`);
+                });
                 console.log('allContacts después de precarga:', Array.from(allContacts));
 
                 const allUsers = new Set([currentUser, ...allContacts]);
@@ -575,22 +587,26 @@
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${user}`);
                         const picData = await picResponse.json();
                         profilePics[user] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                        console.log(`Foto de perfil cargada para ${user}:`, profilePics[user]);
                     }
                 }
 
                 for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     allMessages[contact] = await msgResponse.json();
+                    console.log(`Mensajes cargados para ${contact}:`, allMessages[contact]);
                 }
                 for (const group of loadedGroups) {
                     const msgResponse = await fetch(`${BASE_URL}/group_messages/${group.group_id}`);
                     allMessages[group.group_id] = await msgResponse.json();
+                    console.log(`Mensajes de grupo cargados para ${group.group_id}:`, allMessages[group.group_id]);
                 }
 
+                console.log('Llamando a loadContactsAndGroups() desde preloadData');
                 await loadContactsAndGroups();
             } catch (err) {
                 console.error('Error al precargar datos:', err);
-                alert('Error al cargar datos iniciales. Por favor, recarga la página.');
+                alert('Error al cargar datos iniciales: ' + err.message);
             }
         }
 
@@ -726,56 +742,46 @@
                 return;
             }
 
+            console.log('Limpiando #contact-list para recarga completa');
+            contactList.innerHTML = '';
             const fragment = document.createDocumentFragment();
 
-            if (isInitialLoad) {
-                contactList.innerHTML = '';
-                console.log('Carga inicial: limpiando #contact-list');
-            }
-
             try {
-                console.log('Iniciando carga completa de contactos y grupos para:', currentUser);
+                console.log('Iniciando carga de contactos y grupos para:', currentUser);
 
-                if (isInitialLoad && allContacts.size === 0 && loadedGroups.length === 0) {
+                if (allContacts.size === 0 && loadedGroups.length === 0) {
                     contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
                     console.log('No se encontraron contactos ni grupos para mostrar');
                 } else {
-                    if (isInitialLoad) {
-                        console.log('Grupos a renderizar:', loadedGroups);
-                        loadedGroups.forEach(group => {
-                            if (!contactList.querySelector(`[data-group-id="${group.group_id}"]`)) {
-                                const unreadCount = (unreadMessages[group.group_id] || []).length;
-                                const li = document.createElement('li');
-                                li.className = 'group';
-                                li.dataset.groupId = group.group_id;
-                                li.innerHTML = `
-                                    <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
-                                    ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                                    ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
-                                `;
-                                li.onclick = () => selectContact(group.group_id, true);
-                                fragment.appendChild(li);
-                                console.log('Grupo añadido al fragmento:', group.group_name, 'ID:', group.group_id);
-                            }
-                        });
-                        isInitialLoad = false;
-                    }
+                    console.log('Grupos a renderizar:', loadedGroups);
+                    loadedGroups.forEach(group => {
+                        const unreadCount = (unreadMessages[group.group_id] || []).length;
+                        const li = document.createElement('li');
+                        li.className = 'group';
+                        li.dataset.groupId = group.group_id;
+                        li.innerHTML = `
+                            <img src="${group.group_pic || DEFAULT_PROFILE_PIC}" class="profile-pic">${group.group_name} (Grupo)
+                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                            ${group.creator === currentUser ? `<button class="settings-button" onclick="event.stopPropagation(); showGroupSettings(${group.group_id})">⚙️</button>` : ''}
+                        `;
+                        li.onclick = () => selectContact(group.group_id, true);
+                        fragment.appendChild(li);
+                        console.log('Grupo añadido al fragmento:', group.group_name, 'ID:', group.group_id);
+                    });
 
                     console.log('Contactos a renderizar:', Array.from(allContacts));
                     allContacts.forEach(contact => {
-                        if (!contactList.querySelector(`[data-contact="${contact}"]`)) {
-                            const unreadCount = (unreadMessages[contact] || []).length;
-                            const li = document.createElement('li');
-                            li.className = 'contact';
-                            li.dataset.contact = contact;
-                            li.innerHTML = `
-                                <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
-                                ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
-                            `;
-                            li.onclick = () => selectContact(contact, false);
-                            fragment.appendChild(li);
-                            console.log('Contacto añadido al fragmento:', contact);
-                        }
+                        const unreadCount = (unreadMessages[contact] || []).length;
+                        const li = document.createElement('li');
+                        li.className = 'contact';
+                        li.dataset.contact = contact;
+                        li.innerHTML = `
+                            <img src="${profilePics[contact] || DEFAULT_PROFILE_PIC}" class="profile-pic">${contact}
+                            ${unreadCount > 0 ? `<span class="notification">${unreadCount}</span>` : ''}
+                        `;
+                        li.onclick = () => selectContact(contact, false);
+                        fragment.appendChild(li);
+                        console.log('Contacto añadido al fragmento:', contact);
                     });
 
                     contactList.appendChild(fragment);
@@ -783,11 +789,10 @@
                 }
             } catch (err) {
                 console.error('Error al cargar contactos y grupos:', err.message);
-                if (isInitialLoad) {
-                    contactList.innerHTML = '<li>Error al cargar: ' + err.message + '</li>';
-                }
+                contactList.innerHTML = '<li>Error al cargar: ' + err.message + '</li>';
             } finally {
                 isLoadingContacts = false;
+                console.log('Carga de contactos y grupos completada');
             }
         }
 
