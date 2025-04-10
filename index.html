@@ -44,9 +44,9 @@
             background: #fff;
             padding: 20px;
             border-right: 1px solid #e0e0e0;
-            height: 100%; /* Ajustado para ocupar toda la altura del contenedor */
             display: flex;
-            flex-direction: column; /* Permite que los elementos internos se distribuyan verticalmente */
+            flex-direction: column;
+            height: 100%;
         }
         #chat-area {
             width: 65%;
@@ -64,8 +64,8 @@
         }
         #contact-list {
             list-style: none;
-            overflow-y: auto; /* Mantiene el desplazamiento vertical */
-            height: calc(100% - 160px); /* Ajustado para ocupar el espacio restante */
+            overflow-y: auto;
+            flex-grow: 1;
         }
         .contact, .group {
             display: flex;
@@ -404,7 +404,6 @@
 
         console.log('Script cargado. BASE_URL:', BASE_URL);
 
-        // Emojis (sin cambios, omitidos por brevedad)
         const emojiCategories = {
             "Caras y Emociones": ["😀", "😁", "😂"],
             "Personas": ["👶", "🍼", "👧"],
@@ -490,7 +489,7 @@
 
         async function login() {
             console.log('login llamado');
-            const username = document.getElementById('username').value; // SIN .toLowerCase()
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             console.log('Datos de login enviados tal cual:', { username, password });
             try {
@@ -503,7 +502,7 @@
                 if (response.ok) {
                     const user = await response.json();
                     console.log('Usuario logueado:', user);
-                    currentUser = user.username; // Guardamos el username tal como viene del backend
+                    currentUser = user.username;
                     profilePics[currentUser] = user.profile_pic || DEFAULT_PROFILE_PIC;
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
@@ -527,7 +526,7 @@
 
         async function register() {
             console.log('register llamado');
-            const username = document.getElementById('username').value; // SIN .toLowerCase()
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             console.log('Datos de registro enviados tal cual:', { username, password });
             try {
@@ -553,13 +552,11 @@
 
         async function preloadData() {
             try {
-                // Precargar grupos
                 const groupResponse = await fetch(`${BASE_URL}/groups/${currentUser}`);
                 loadedGroups = await groupResponse.json();
                 loadedGroupIds = new Set(loadedGroups.map(g => g.group_id));
                 console.log('Grupos precargados:', loadedGroups);
 
-                // Precargar todos los contactos de una vez
                 allContacts.clear();
                 const contactResponse = await fetch(`${BASE_URL}/contacts/${currentUser}`);
                 const contacts = await contactResponse.json();
@@ -567,7 +564,6 @@
                 contacts.forEach(contact => allContacts.add(contact));
                 console.log('allContacts después de precarga:', Array.from(allContacts));
 
-                // Precargar fotos de perfil
                 const allUsers = new Set([currentUser, ...allContacts]);
                 for (const group of loadedGroups) {
                     const memberResponse = await fetch(`${BASE_URL}/group-members/${group.group_id}`);
@@ -582,7 +578,6 @@
                     }
                 }
 
-                // Precargar mensajes
                 for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     allMessages[contact] = await msgResponse.json();
@@ -662,46 +657,58 @@
         }
 
         async function addContact() {
-            const contact = document.getElementById('new-contact').value.trim(); // SIN .toLowerCase()
+            const contact = document.getElementById('new-contact').value.trim();
             if (!contact || contact === currentUser) {
+                console.log('Contacto inválido o igual al usuario actual:', contact);
                 document.getElementById('new-contact').value = '';
                 return;
             }
             if (allContacts.has(contact)) {
-                console.log(`Contacto ${contact} ya existe`);
+                console.log(`Contacto ${contact} ya existe en allContacts`);
                 document.getElementById('new-contact').value = '';
                 return;
             }
+
             try {
+                console.log('Enviando solicitud para agregar contacto:', { username: currentUser, contact });
                 const response = await fetch(`${BASE_URL}/contacts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: currentUser, contact })
                 });
+
                 if (response.ok) {
+                    console.log('Contacto agregado exitosamente en el backend');
                     allContacts.add(contact);
+                    console.log('allContacts actualizado:', Array.from(allContacts));
+
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
                     allMessages[contact] = await msgResponse.json();
+                    console.log('Mensajes precargados para', contact, ':', allMessages[contact]);
+
                     if (!profilePics[contact]) {
                         const picResponse = await fetch(`${BASE_URL}/profile-pic/${contact}`);
                         const picData = await picResponse.json();
                         profilePics[contact] = picData.profile_pic || DEFAULT_PROFILE_PIC;
+                        console.log('Foto de perfil cargada para', contact, ':', profilePics[contact]);
                     }
-                    isInitialLoad = true;
+
                     await loadContactsAndGroups();
                     document.getElementById('new-contact').value = '';
+                    console.log('UI actualizada con el nuevo contacto');
+
                     if (!currentContact) {
                         selectContact(contact, false);
                     }
                 } else {
                     const error = await response.json();
-                    console.error('Error al agregar contacto:', error);
+                    console.error('Error al agregar contacto en el backend:', error);
                     alert(error.error || 'Error al agregar contacto');
                 }
             } catch (err) {
-                console.error('Error en addContact:', err);
+                console.error('Error en la solicitud de addContact:', err);
                 alert('Error de conexión al agregar contacto');
-                await loadContactsAndGroups();
+                await preloadData();
             }
         }
 
@@ -733,7 +740,6 @@
                     contactList.innerHTML = '<li>No hay contactos ni grupos disponibles</li>';
                     console.log('No se encontraron contactos ni grupos para mostrar');
                 } else {
-                    // Renderizar todos los grupos primero
                     if (isInitialLoad) {
                         console.log('Grupos a renderizar:', loadedGroups);
                         loadedGroups.forEach(group => {
@@ -755,7 +761,6 @@
                         isInitialLoad = false;
                     }
 
-                    // Renderizar todos los contactos después
                     console.log('Contactos a renderizar:', Array.from(allContacts));
                     allContacts.forEach(contact => {
                         if (!contactList.querySelector(`[data-contact="${contact}"]`)) {
@@ -773,7 +778,6 @@
                         }
                     });
 
-                    // Añadir todo al DOM en una sola operación
                     contactList.appendChild(fragment);
                     console.log('Total de elementos renderizados en #contact-list:', contactList.children.length);
                 }
@@ -1081,7 +1085,7 @@
         }
 
         async function addGroupMember() {
-            const newMember = document.getElementById('new-group-member').value; // SIN .toLowerCase()
+            const newMember = document.getElementById('new-group-member').value;
             if (newMember) {
                 const response = await fetch(`${BASE_URL}/group-add-member`, {
                     method: 'POST',
