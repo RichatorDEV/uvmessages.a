@@ -156,9 +156,6 @@
         }
         #logout-button {
             background: #ff4444;
-            width: auto;
-            padding: 5px 10px;
-            margin-left: 10px;
         }
         #logout-button:hover {
             background: #cc0000;
@@ -271,7 +268,7 @@
             background: none;
             border: none;
             cursor: pointer;
-            margin-left: 10px;
+            margin-left: auto;
         }
         .settings-button:hover {
             background: #e0e0e0;
@@ -337,7 +334,6 @@
                 <img id="my-profile-pic" class="profile-pic" src="https://files.catbox.moe/q0qka5.png" alt="Perfil">
                 <span id="my-username"></span>
                 <button class="settings-button" onclick="showSettings()">⚙️</button>
-                <button id="logout-button" onclick="logout()">Cerrar Sesión</button>
             </div>
             <input type="text" id="new-contact" placeholder="Agregar contacto">
             <button onclick="addContact()">Agregar</button>
@@ -362,6 +358,7 @@
         <input type="file" id="profile-pic-input" accept="image/*">
         <button class="update-pic-button" onclick="updateProfilePic()">Actualizar Foto</button>
         <button onclick="hideSettings()">Cerrar</button>
+        <button id="logout-button" onclick="logout()">Cerrar Sesión</button>
     </div>
 
     <!-- Creación de grupo -->
@@ -417,16 +414,13 @@
         // Verificar sesión al cargar la página
         window.onload = function() {
             const storedUser = localStorage.getItem('currentUser');
-            const storedProfilePic = localStorage.getItem('profilePic');
-            if (storedUser && storedProfilePic) {
+            if (storedUser) {
                 currentUser = storedUser;
-                profilePics[currentUser] = storedProfilePic;
                 document.getElementById('auth-container').style.display = 'none';
                 document.getElementById('messenger-container').style.display = 'flex';
                 document.getElementById('my-username').textContent = currentUser;
-                document.getElementById('my-profile-pic').src = profilePics[currentUser];
                 isInitialLoad = true;
-                preloadData();
+                preloadData(); // Carga la foto de perfil desde la BD
                 setupWebSocket();
                 document.getElementById('current-contact').textContent = 'Selecciona un contacto o grupo';
                 document.getElementById('messages').innerHTML = '';
@@ -534,9 +528,8 @@
                     currentUser = user.username;
                     profilePics[currentUser] = user.profile_pic || DEFAULT_PROFILE_PIC;
                     
-                    // Guardar en localStorage
+                    // Guardar solo el usuario en localStorage
                     localStorage.setItem('currentUser', currentUser);
-                    localStorage.setItem('profilePic', profilePics[currentUser]);
                     
                     document.getElementById('auth-container').style.display = 'none';
                     document.getElementById('messenger-container').style.display = 'flex';
@@ -594,12 +587,12 @@
             unreadMessages = {};
             profilePics = {};
             localStorage.removeItem('currentUser');
-            localStorage.removeItem('profilePic');
             document.getElementById('messenger-container').style.display = 'none';
             document.getElementById('auth-container').style.display = 'block';
             document.getElementById('username').value = '';
             document.getElementById('password').value = '';
             if (!isLoginMode) toggleAuth(); // Volver a modo login si estaba en registro
+            hideSettings();
         }
 
         async function preloadData() {
@@ -642,6 +635,7 @@
                         console.log(`Foto de perfil cargada para ${user}:`, profilePics[user]);
                     }
                 }
+                document.getElementById('my-profile-pic').src = profilePics[currentUser];
 
                 for (const contact of allContacts) {
                     const msgResponse = await fetch(`${BASE_URL}/messages/${currentUser}/${contact}`);
@@ -981,7 +975,6 @@
                     const profilePic = e.target.result;
                     document.getElementById('my-profile-pic').src = profilePic;
                     profilePics[currentUser] = profilePic;
-                    localStorage.setItem('profilePic', profilePic); // Actualizar en localStorage
                     const response = await fetch(`${BASE_URL}/profile-pic`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
